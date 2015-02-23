@@ -1,0 +1,17 @@
+{
+  "name": "dat-core",
+  "version": "0.0.0",
+  "description": "dat core",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maxogden/dat-core.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/maxogden/dat-core/issues"
+  },
+  "homepage": "https://github.com/maxogden/dat-core"
+}
