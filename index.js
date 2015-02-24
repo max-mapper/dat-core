@@ -143,6 +143,15 @@ Dat.prototype._flush = function (node, cb) {
   this._callbacks[node.change] = cb
 }
 
+Dat.prototype.branches = function (name, cb) {
+  this.open(function (err, dat) {
+    if (err) return cb(err)
+    if (!dat._index[name]) return cb(new Error('Dataset does not exist'))
+
+    cb(null, Object.keys(dat._index[name]))
+  })
+}
+
 Dat.prototype.dataset = function (name, branch) {
   return dataset(this, name, branch)
 }
