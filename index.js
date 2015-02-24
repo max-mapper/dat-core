@@ -64,17 +64,29 @@ var Dat = function (dir, opts) {
           })
         }
 
-        pump(self._branches.createReadStream(), through.obj(write), function (err) {
-          if (err) return cb(err)
-          self._process()
-          cb(null, self)
-        })
+        var index = function () {
+          pump(self._branches.createReadStream(), through.obj(write), function (err) {
+            if (err) return cb(err)
+            self._process(function() {
+              self._process()
+              cb(null, self)
+            })
+          })
+        }
+
+        if (!opts.reset) return index()
+
+        var del = function (key, enc, cb) {
+          self._view.del(key, cb)
+        }
+
+        pump(self._view.createKeyStream(), through.obj(del), index)
       })
     })
   })
 }
 
-Dat.prototype._process = function () {
+Dat.prototype._process = function (cb) {
   var self = this
   var index = this._index
 
@@ -114,7 +126,7 @@ Dat.prototype._process = function () {
     }
 
     if (value.type === 'del') {
-      batch.push({type: 'del', key: '!data!!' + rhash + '!0!' +  value.key})
+      batch.push({type: 'put', key: '!data!!' + rhash + '!0!' +  value.key, value: ' '})
       batch.push({type: 'put', key: '!data!!' + rhash + '!1!' +  value.key + '!' + lexint.pack(node.change, 'hex'), value: ' '})      
     }
 
@@ -134,7 +146,9 @@ Dat.prototype._process = function () {
     if (err && !err.notFound) throw err
 
     change = parseInt(change || 0)
-    self.log.createChangesStream({since: change, live: true}).pipe(through.obj(process))    
+    self.log.createChangesStream({since: change, live: !cb}).pipe(through.obj(process)).on('finish', function () {
+      if (cb) cb()
+    })
   })
 }
 
@@ -148,7 +162,11 @@ Dat.prototype.branches = function (name, cb) {
     if (err) return cb(err)
     if (!dat._index[name]) return cb(new Error('Dataset does not exist'))
 
-    cb(null, Object.keys(dat._index[name]))
+    var toBranch = function (head) {
+      return dat._index[name][head].root.hash
+    }
+
+    cb(null, Object.keys(dat._index[name]).map(toBranch))
   })
 }
 
