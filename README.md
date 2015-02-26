@@ -82,6 +82,19 @@ and you then pull the remote's changes.
 
 They can also happen if you checkout a prevision revision and make changes.
 
+#### `stream = db.compare([branch1, branch2, ...])`
+
+Compare two or more branches with each other.
+The stream will emit key,value pairs that conflict across the branches
+
+#### `stream = db.merge([branch1, branch2, ...])`
+
+Returns a merge stream. You should write key,value pairs to this stream
+that conflicts across the branches (see the compare method above).
+
+Once you end this stream the branches will be merged assuming the don't
+contain conflicting keys anymore.
+
 #### `anotherDat = db.checkout(ref)`
 
 Checkout a branch of the dat or an older revision. This is useful if you want to pin your data
