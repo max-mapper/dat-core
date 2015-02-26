@@ -68,6 +68,20 @@ Create a replication stream that both pulls changes from another dat
 
 Create a replication stream that both pulls and pushes
 
+#### `stream = db.createChangesStream([options])`
+
+Get a stream of changes happening to the dat. These changes
+are ONLY guaranteed to be ordered locally.
+
+#### `db.branches(callback)`
+
+Get a list of branches in the dat.
+
+Branches will happen if both you and a remote make changes to the dat
+and you then pull the remote's changes.
+
+They can also happen if you checkout a prevision revision and make changes.
+
 #### `anotherDat = db.checkout(ref)`
 
 Checkout a branch of the dat or an older revision. This is useful if you want to pin your data
