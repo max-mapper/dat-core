@@ -73,7 +73,7 @@ Create a replication stream that both pulls and pushes
 Checkout a branch of the dat or an older revision. This is useful if you want to pin your data
 to a point in time.
 
-```
+``` js
 db.put('hello', 'world', function () {
   var oldHash = db.head
   db.put('hello', 'verden', function () {
@@ -92,10 +92,10 @@ db.put('hello', 'world', function () {
 
 #### `dataset = db.dataset(name)`
 
-Create a namespaced dataset. Similar to using the `dataset` option
-on puts/gets etc
+Create a namespaced dataset. A dataset is a sub dat
+that you can use to group datasets together
 
-```
+``` js
 var salaries = db.dataset('salaries')
 
 salaries.put('hello', 'world')
