@@ -6,6 +6,7 @@ var through = require('through2')
 var pump = require('pump')
 var fs = require('fs')
 var path = require('path')
+var leveldown = require('leveldown')
 var subleveldown = require('subleveldown')
 var lexint = require('lexicographic-integer')
 var messages = require('./lib/messages')
@@ -19,7 +20,7 @@ var Dat = function (dir, opts) {
 
   var self = this
 
-  var backend = opts.backend || require('leveldown')
+  var backend = opts.backend || leveldown
   var datPath = path.join(dir, '.dat')
   var levelPath = path.join(datPath, 'db')
 
