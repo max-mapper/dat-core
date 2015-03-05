@@ -10,6 +10,7 @@ var leveldown = require('leveldown-prebuilt')
 var subleveldown = require('subleveldown')
 var lexint = require('lexicographic-integer')
 var messages = require('./lib/messages')
+var duplexify = require('duplexify')
 var dataset = require('./lib/dataset')
 
 var noop = function () {}
@@ -27,12 +28,14 @@ var Dat = function (dir, opts) {
   this.path = datPath
   this.log = null
 
+  this._dir = dir
   this._db = null
   this._meta = null
   this._view = null
   this._data = null
   this._branches = null
   this._index = {}
+  this._open = false
 
   this._callbacks = {}
   this._change = 0
@@ -44,7 +47,7 @@ var Dat = function (dir, opts) {
       mkdirp(datPath, function (err) {
         if (err) return cb(err)
 
-        self._db = levelup(path.join(datPath, 'db'), {db: backend})
+        self._db = opts.db || levelup(path.join(datPath, 'db'), {db: backend})
         self._view = subleveldown(self._db, 'view', {valueEncoding: 'binary'})
         self._meta = subleveldown(self._view, 'meta', {valueEncoding: 'utf-8'})
         self._data = subleveldown(self._view, 'data', {valueEncoding: 'utf-8'})
@@ -59,7 +62,7 @@ var Dat = function (dir, opts) {
               if (err) return cb(err)
               var name = messages.Commit.decode(root.value).dataset
               if (!self._index[name]) self._index[name] = {}
-              self._index[name][head.hash] = {head: head, root: root}
+              self._index[name][head.key] = {head: head, root: root}
               cb()
             })
           })
@@ -70,6 +73,7 @@ var Dat = function (dir, opts) {
             if (err) return cb(err)
             self._process(function() {
               self._process()
+              self._open = true
               cb(null, self)
             })
           })
@@ -85,6 +89,17 @@ var Dat = function (dir, opts) {
       })
     })
   })
+
+  this.set = dataset(this, 'default')
+  if (opts.head) this.set.checkout(opts.head)
+}
+
+Dat.prototype.__defineGetter__('head', function () {
+  return this.set.head
+})
+
+Dat.prototype.checkout = function (hash) {
+  return new Dat(this._dir, {head: hash, db: this._db})
 }
 
 Dat.prototype._process = function (cb) {
@@ -109,21 +124,21 @@ Dat.prototype._process = function (cb) {
 
     var prev = node.links.length && node.links[0]
 
-    if (!prev || !sindex[prev.hash]) {
-      sindex[node.hash] = {root: node, head: node}
+    if (!prev || !sindex[prev]) {
+      sindex[node.key] = {root: node, head: node}
     } else {
-      sindex[prev.hash].head = node
-      sindex[node.hash] = sindex[prev.hash]      
-      delete sindex[prev.hash]
+      sindex[prev].head = node
+      sindex[node.key] = sindex[prev]      
+      delete sindex[prev]
     }
 
-    var rhash = sindex[node.hash].root.hash
+    var rhash = sindex[node.key].root.key
 
-    batch.push({type: 'put', key: key('branches', rhash), value: node.hash})
+    batch.push({type: 'put', key: key('branches', rhash), value: node.key})
 
     if (value.type === 'put') {
-      batch.push({type: 'put', key: '!data!!' + rhash + '!0!' +  value.key, value: node.hash})
-      batch.push({type: 'put', key: '!data!!' + rhash + '!1!' +  value.key + '!' + lexint.pack(node.change, 'hex'), value: node.hash})
+      batch.push({type: 'put', key: '!data!!' + rhash + '!0!' +  value.key, value: node.key})
+      batch.push({type: 'put', key: '!data!!' + rhash + '!1!' +  value.key + '!' + lexint.pack(node.change, 'hex'), value: node.key})
     }
 
     if (value.type === 'del') {
@@ -132,6 +147,7 @@ Dat.prototype._process = function (cb) {
     }
 
     batch.push({type: 'put', key: '!meta!change', value: '' + node.change})
+
     self._view.batch(batch, function (err) {
       if (err) return cb(err)
 
@@ -147,7 +163,7 @@ Dat.prototype._process = function (cb) {
     if (err && !err.notFound) throw err
 
     change = parseInt(change || 0)
-    self.log.createChangesStream({since: change, live: !cb}).pipe(through.obj(process)).on('finish', function () {
+    self.log.createReadStream({since: change, live: !cb}).pipe(through.obj(process)).on('finish', function () {
       if (cb) cb()
     })
   })
@@ -164,15 +180,52 @@ Dat.prototype.branches = function (name, cb) {
     if (!dat._index[name]) return cb(new Error('Dataset does not exist'))
 
     var toBranch = function (head) {
-      return dat._index[name][head].root.hash
+      return dat._index[name][head].root.key
     }
 
     cb(null, Object.keys(dat._index[name]).map(toBranch))
   })
 }
 
-Dat.prototype.dataset = function (name, branch) {
-  return dataset(this, name, branch)
+Dat.prototype.get = function () {
+  this.set.get.apply(this.set, arguments)
+}
+
+Dat.prototype.put = function () {
+  this.set.put.apply(this.set, arguments)
+}
+
+Dat.prototype.del = function () {
+  this.set.del.apply(this.set, arguments)
+}
+
+Dat.prototype.createReadStream = function () {
+  return this.set.createReadStream.apply(this.set, arguments)
+}
+
+Dat.prototype.createWriteStream = function () {
+  return this.set.createWriteStream.apply(this.set, arguments)
+}
+
+Dat.prototype.createReplicationStream = function () {
+  if (this._open) return this.log.createReplicationStream()
+
+  var proxy = duplexify()
+
+  this.open(function (err, self) {
+    if (err) return proxy.destroy(err)
+    var rs = self.log.createReplicationStream()
+    proxy.setReadable(rs)
+    proxy.setWritable(rs)
+    rs.on('pull', function () {
+      proxy.emit('pull')
+    })
+    rs.on('push', function () {
+      proxy.emit('push')
+    })
+  })
+
+  return proxy
 }
 
 module.exports = Dat
