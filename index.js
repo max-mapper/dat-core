@@ -6,7 +6,6 @@ var through = require('through2')
 var pump = require('pump')
 var fs = require('fs')
 var path = require('path')
-var leveldown = require('leveldown-prebuilt')
 var subleveldown = require('subleveldown')
 var lexint = require('lexicographic-integer')
 var messages = require('./lib/messages')
@@ -18,14 +17,21 @@ var noop = function () {}
 var Dat = function (dir, opts) {
   if (!(this instanceof Dat)) return new Dat(dir, opts)
   if (!opts) opts = {}
+  opts.createIfMissing = true
 
   var self = this
+  
+  if (typeof dir === 'object') {
+    opts.db = dir
+  }
 
-  var backend = opts.backend || leveldown
-  var datPath = path.join(dir, '.dat')
-  var levelPath = path.join(datPath, 'db')
+  if (typeof dir === 'string') {
+    var datPath = path.join(dir, '.dat')
+    var levelPath = path.join(datPath, 'db')
+    var backend = opts.backend || require('leveldown-prebuilt')
+  }
 
-  this.path = datPath
+  this.path = datPath || 'no-path'
   this.log = null
 
   this._dir = dir
@@ -41,53 +47,61 @@ var Dat = function (dir, opts) {
   this._change = 0
 
   this.open = thunky(function (cb) {
-    fs.exists(datPath, function (exists) {
-      if (!exists && !opts.createIfMissing) return cb(new Error('No dat here'))
+    
+    if (datPath) {
+      fs.exists(datPath, function (exists) {
+        if (!exists && !opts.createIfMissing) return cb(new Error('No dat here'))
 
-      mkdirp(datPath, function (err) {
-        if (err) return cb(err)
-
-        self._db = opts.db || levelup(path.join(datPath, 'db'), {db: backend})
-        self._view = subleveldown(self._db, 'view', {valueEncoding: 'binary'})
-        self._meta = subleveldown(self._view, 'meta', {valueEncoding: 'utf-8'})
-        self._data = subleveldown(self._view, 'data', {valueEncoding: 'utf-8'})
-        self._branches = subleveldown(self._view, 'branches', {valueEncoding: 'utf-8'})
-
-        self.log = hyperlog(subleveldown(self._db, 'hyperlog'))
-
-        var write = function (data, enc, cb) {
-          self.log.get(data.key, function (err, root) {
-            if (err) return cb(err)
-            self.log.get(data.value, function (err, head) {
-              if (err) return cb(err)
-              var name = messages.Commit.decode(root.value).dataset
-              if (!self._index[name]) self._index[name] = {}
-              self._index[name][head.key] = {head: head, root: root}
-              cb()
-            })
-          })
-        }
-
-        var index = function () {
-          pump(self._branches.createReadStream(), through.obj(write), function (err) {
-            if (err) return cb(err)
-            self._process(function() {
-              self._process()
-              self._open = true
-              cb(null, self)
-            })
-          })
-        }
-
-        if (!opts.reset) return index()
-
-        var del = function (key, enc, cb) {
-          self._view.del(key, cb)
-        }
-
-        pump(self._view.createKeyStream(), through.obj(del), index)
+        mkdirp(datPath, function (err) {
+          if (err) return cb(err)
+          init()
+        })
       })
-    })
+    }
+    
+    else init()
+    
+    function init () {
+      self._db = opts.db || levelup(path.join(datPath, 'db'), {db: backend})
+      self._view = subleveldown(self._db, 'view', {valueEncoding: 'binary'})
+      self._meta = subleveldown(self._view, 'meta', {valueEncoding: 'utf-8'})
+      self._data = subleveldown(self._view, 'data', {valueEncoding: 'utf-8'})
+      self._branches = subleveldown(self._view, 'branches', {valueEncoding: 'utf-8'})
+
+      self.log = hyperlog(subleveldown(self._db, 'hyperlog'))
+
+      var write = function (data, enc, cb) {
+        self.log.get(data.key, function (err, root) {
+          if (err) return cb(err)
+          self.log.get(data.value, function (err, head) {
+            if (err) return cb(err)
+            var name = messages.Commit.decode(root.value).dataset
+            if (!self._index[name]) self._index[name] = {}
+            self._index[name][head.key] = {head: head, root: root}
+            cb()
+          })
+        })
+      }
+
+      var index = function () {
+        pump(self._branches.createReadStream(), through.obj(write), function (err) {
+          if (err) return cb(err)
+          self._process(function() {
+            self._process()
+            self._open = true
+            cb(null, self)
+          })
+        })
+      }
+
+      if (!opts.reset) return index()
+
+      var del = function (key, enc, cb) {
+        self._view.del(key, cb)
+      }
+
+      pump(self._view.createKeyStream(), through.obj(del), index)
+    }
   })
 
   this.set = dataset(this, 'default')
