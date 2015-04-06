@@ -11,7 +11,6 @@
     "levelup": "^0.19.0",
     "lexicographic-integer": "^1.1.0",
     "mkdirp": "^0.5.0",
-    "multistream": "^1.4.2",
     "mutexify": "^1.0.1",
     "protocol-buffers": "^2.6.1",
     "pump": "^1.0.0",
@@ -22,7 +21,9 @@
     "xtend": "^4.0.0"
   },
   "devDependencies": {
-    "standard": "^3.3.2"
+    "memdb": "^0.2.0",
+    "standard": "^3.3.2",
+    "tape": "^4.0.0"
   },
   "repository": {
     "type": "git",
@@ -32,7 +33,7 @@
     "dat-core": "./bin.js"
   },
   "scripts": {
-    "test": "standard"
+    "test": "standard && tape test/*.js"
   },
   "license": "MIT",
   "bugs": {
