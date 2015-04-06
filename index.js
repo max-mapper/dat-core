@@ -53,6 +53,7 @@ var Dat = function (dir, opts) {
 
   this.valueEncoding = opts.valueEncoding || opts.encoding || 'binary'
   this.head = null
+  this.meta = null
 
   this._encoding = encoding(this.valueEncoding)
   this._layers = []
@@ -70,6 +71,7 @@ var Dat = function (dir, opts) {
         if (err) return cb(err)
 
         self.head = head
+        self.meta = self._index.meta // expose
         self._layers = layers
         self._layerChange = layers[0][0]
         self._layerKey = layers[0][1]
@@ -137,7 +139,7 @@ var Dat = function (dir, opts) {
   })
 
   this.open(function (err) {
-    if (err) self.emit('error', err)
+    if (err) return self.emit('error', err)
     self.emit('ready')
   })
 }
@@ -412,9 +414,23 @@ Dat.prototype._createProxyStream = function (method, opts) {
   this.open(function (err, self) {
     if (err) return proxy.destroy(err)
     if (proxy.destroyed) return proxy.destroy()
+
     var stream = method.call(self, opts)
-    proxy.setReadable(stream)
-    proxy.setWritable(stream)
+
+    stream.on('pull', function (value) {
+      proxy.emit('pull', value)
+    })
+
+    stream.on('push', function (value) {
+      proxy.emit('push', value)
+    })
+
+    stream.on('metadata', function (value) {
+      proxy.emit('metadata', value)
+    })
+
+    proxy.setReadable(!!stream.readable && stream)
+    proxy.setWritable(!!stream.writable && stream)
   })
 
   return proxy
