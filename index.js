@@ -148,14 +148,14 @@ var Dat = function (dir, opts) {
 
 util.inherits(Dat, events.EventEmitter)
 
-Dat.prototype.heads = function () {
-  if (!this._index) return this._createProxyStream(this.heads)
-  return this._index.heads.createValueStream()
+Dat.prototype.heads = function (cb) {
+  if (!this._index) return this._createProxyStream(this.heads, cb)
+  return collect(this._index.heads.createValueStream(), cb)
 }
 
-Dat.prototype.layers = function () {
-  if (!this._index) return this._createProxyStream(this.layers)
-  return this._index.heads.createKeyStream()
+Dat.prototype.layers = function (cb) {
+  if (!this._index) return this._createProxyStream(this.layers, cb)
+  return collect(this._index.heads.createKeyStream(), cb)
 }
 
 Dat.prototype.layer = function (layer, opts) {
