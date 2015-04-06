@@ -71,7 +71,6 @@ var Dat = function (dir, opts) {
         if (err) return cb(err)
 
         self.head = head
-        self.meta = self._index.meta // expose
         self._layers = layers
         self._layerChange = layers[0][0]
         self._layerKey = layers[0][1]
@@ -96,6 +95,8 @@ var Dat = function (dir, opts) {
     }
 
     var onindex = function () {
+      self.meta = self._index.meta // expose
+
       if (opts.checkout) {
         self._checkout = true
         oncheckout(opts.checkout)
