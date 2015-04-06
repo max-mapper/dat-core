@@ -385,16 +385,11 @@ Dat.prototype.replicate = function (opts) {
   if (!this._index) return this._createProxyStream(this.replicate, opts)
 
   var self = this
-  var stream = this._index.log.replicate(opts)
+  var finalize = function (cb) {
+    self.flush(cb)
+  }
 
-  stream.on('prefinish', function () {
-    stream.cork()
-    self.flush(function () {
-      stream.uncork()
-    })
-  })
-
-  return stream
+  return this._index.log.replicate(xtend(opts, {finalize: finalize}))
 }
 
 Dat.prototype.createPullStream =

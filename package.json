@@ -5,7 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "duplexify": "^3.2.0",
-    "hyperlog": "^3.2.0",
+    "hyperlog": "^3.3.0",
     "level-errors": "^1.0.3",
     "leveldown-prebuilt": "^1.0.3",
     "levelup": "^0.19.0",
