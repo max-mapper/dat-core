@@ -6,7 +6,7 @@ Work in progress. Will be part of [dat](https://github.com/maxogden/dat) beta.
 npm install dat-core
 ```
 
-[![build status](http://img.shields.io/travis/mafintosh/dat-core.svg?style=flat)](http://travis-ci.org/mafintosh/dat-core)
+[![build status](http://img.shields.io/travis/maxogden/dat-core.svg?style=flat)](http://travis-ci.org/maxogden/dat-core)
 ![dat](http://img.shields.io/badge/Development%20sponsored%20by-dat-green.svg?style=flat)
 
 ## Usage
