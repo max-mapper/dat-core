@@ -23,28 +23,30 @@ db.put('hello', 'world', function () { // insert value
 
 ## API
 
-#### `db = dat(path, [options])`
+#### `db = dat(pathOrLevelDb, [options])`
 
-Create a new dat instance
+Create a new dat instance. Options include
 
-#### `db.open([cb])`
-
-Force open the dat. Otherwise it is opened lazily.
+``` js
+{
+  valueEncoding: 'json' | 'binary' | 'utf-8'
+}
+```
 
 #### `db.head`
 
 String containing the current head revision of the dat.
 Everytime you mutate the dat this head changes.
 
-#### `db.put(key, value, [options], [cb])`
+#### `db.put(key, value, [cb])`
 
 Insert a value into the dat
 
-#### `db.get(key, [options], cb)`
+#### `db.get(key, cb)`
 
 Get a value node from the dat
 
-#### `db.del(key, [options], cb)`
+#### `db.del(key, cb)`
 
 Delete a node from the dat
 
@@ -64,7 +66,7 @@ Create a replication stream that both pushes changes to another dat
 
 Create a replication stream that both pulls changes from another dat
 
-#### `stream = db.createSyncStream([options])`
+#### `stream = db.createReplicationStream([options])`
 
 Create a replication stream that both pulls and pushes
 
@@ -73,11 +75,15 @@ Create a replication stream that both pulls and pushes
 Get a stream of changes happening to the dat. These changes
 are ONLY guaranteed to be ordered locally.
 
-#### `db.branches(callback)`
+#### `stream = db.heads()`
 
-Get a list of branches in the dat.
+Get a stream of heads in the underlying dat graph.
 
-Branches will happen if both you and a remote make changes to the dat
+#### `stream = db.layers()`
+
+Get a stream of layers in the dat.
+
+A layer will added if both you and a remote make changes to the dat
 and you then pull the remote's changes.
 
 They can also happen if you checkout a prevision revision and make changes.
@@ -97,8 +103,8 @@ contain conflicting keys anymore.
 
 #### `anotherDat = db.checkout(ref)`
 
-Checkout a branch of the dat or an older revision. This is useful if you want to pin your data
-to a point in time.
+Checkout an older revision of the dat.
+This is useful if you want to pin your data to a point in time.
 
 ``` js
 db.put('hello', 'world', function () {
@@ -114,20 +120,6 @@ db.put('hello', 'world', function () {
       console.log(result) // contains 'hello' -> 'verden'
     })
   })
-})
-```
-
-#### `dataset = db.dataset(name)`
-
-Create a namespaced dataset. A dataset is a sub dat
-that you can use to group datasets together
-
-``` js
-var salaries = db.dataset('salaries')
-
-salaries.put('hello', 'world')
-salaries.get('hello', function (err, result) {
-  console.log(result) // contains world
 })
 ```
 

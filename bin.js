@@ -4,7 +4,7 @@ var http = require('http')
 var url = require('url')
 var cmd = process.argv[2]
 
-var db = dat('.', {createIfMissing: cmd === 'init'})
+var db = dat('.', {createIfMissing: cmd === 'init', valueEncoding: 'utf-8'})
 
 if (cmd === 'init') {
   db.open(function () {
@@ -14,7 +14,7 @@ if (cmd === 'init') {
 }
 
 if (cmd === 'head') {
-  db.set.open(function () {
+  db.open(function () {
     console.log(db.head)
   })
   return
@@ -52,7 +52,7 @@ if (cmd === 'server') {
   return
 }
 
-if (cmd === 'sync') {
+if (cmd === 'replicate') {
   var u = url.parse(process.argv[3])
   var req = http.request({method: 'POST', host: u.hostname, port: u.port})
   var rs = db.createReplicationStream()

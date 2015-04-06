@@ -1,0 +1,14 @@
+enum TYPE {
+  PUT = 1;
+  DELETE = 2;
+}
+
+message Operation {
+  required TYPE type = 1;
+  required string key = 2;
+  optional bytes value = 3;
+}
+
+message Commit {
+  repeated Operation operations = 1;
+}
