@@ -299,6 +299,7 @@ Dat.prototype.flush = function (cb) {
   })
 }
 
+Dat.prototype.changes =
 Dat.prototype.createChangesStream = function (opts) {
   if (!this._index) return this._createProxyStream(this.createChangesStream, opts)
   return this._index.log.createReadStream(opts)
