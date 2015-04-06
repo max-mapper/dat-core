@@ -19,6 +19,7 @@ var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
 
+var noop = function () {}
 var getLayers = function (index, key, cb) {
   var result = []
 
@@ -242,7 +243,7 @@ Dat.prototype._getPointer = function (ptr, cb) {
   this._index.get(ptr.slice(0, i), function (err, node, commit) {
     if (err) return cb(err)
     var entry = commit.operations[index]
-    if (entry.type === messages.TYPE.DELETE) return cb(notFound(key))
+    if (entry.type === messages.TYPE.DELETE) return cb(notFound(entry.key))
     cb(null, self._encoding.decode(entry.value))
   })
 }

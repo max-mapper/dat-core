@@ -21,13 +21,18 @@
     "thunky": "^0.1.0",
     "xtend": "^4.0.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "standard": "^3.3.2"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/maxogden/dat-core.git"
   },
   "bin": {
     "dat-core": "./bin.js"
+  },
+  "scripts": {
+    "test": "standard"
   },
   "license": "MIT",
   "bugs": {

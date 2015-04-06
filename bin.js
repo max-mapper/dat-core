@@ -86,7 +86,7 @@ var ready = function () {
   }
 
   var replicate = function (mode) {
-   var u = process.argv[3]
+    var u = process.argv[3]
     if (!/:\/\//.test(u)) u = 'http://' + u
     if (!/:\d+/.test(u)) u = u.replace(/\/$/, '') + ':6556'
     u = url.parse(u)
