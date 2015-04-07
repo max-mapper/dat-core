@@ -18,6 +18,7 @@ var fs = require('fs')
 var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
+var dataset = require('./lib/dataset')
 
 var noop = function () {}
 var getLayers = function (index, key, cb) {
@@ -148,6 +149,10 @@ var Dat = function (dir, opts) {
 
 util.inherits(Dat, events.EventEmitter)
 
+Dat.prototype.dataset = function (name) {
+  return dataset(name, this)
+}
+
 Dat.prototype.heads = function (cb) {
   if (!this._index) return this._createProxyStream(this.heads, cb)
   return collect(this._index.heads.createValueStream(), cb)
@@ -170,7 +175,12 @@ var notFound = function (key) {
   return new errors.NotFoundError('Key not found in database [' + key + ']')
 }
 
-Dat.prototype.get = function (key, cb) {
+Dat.prototype.get = function (key, opts, cb) {
+  if (typeof opts === 'function') return this.get(key, null, opts)
+  if (!opts) opts = {}
+
+  key = (opts.dataset ? opts.dataset + '!' : '!') + key
+
   this.open(function (err, self) {
     if (err) return cb(err)
     if (!self._layerKey) return cb(notFound(key))
@@ -248,19 +258,27 @@ Dat.prototype._getPointer = function (ptr, cb) {
   })
 }
 
-Dat.prototype.put = function (key, value, cb) {
-  this._commit([{type: messages.TYPE.PUT, key: key, value: this._encoding.encode(value)}], cb)
+Dat.prototype.put = function (key, value, opts, cb) {
+  if (typeof opts === 'function') return this.put(key, value, null, opts)
+  if (!opts) opts = {}
+  this._commit([{type: messages.TYPE.PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
 }
 
-Dat.prototype.del = function (key, cb) {
-  this._commit([{type: messages.TYPE.DELETE, key: key}], cb)
+Dat.prototype.del = function (key, opts, cb) {
+  if (typeof opts === 'function') return this.del(key, null, opts)
+  if (!opts) opts = {}
+  this._commit([{type: messages.TYPE.DELETE, dataset: opts.dataset, key: key}], cb)
 }
 
-Dat.prototype.batch = function (batch, cb) {
+Dat.prototype.batch = function (batch, opts, cb) {
+  if (typeof opts === 'function') return this.batch(batch, null, opts)
+  if (!opts) opts = {}
+
   var operations = new Array(batch.length)
   for (var i = 0; i < batch.length; i++) {
     operations[i] = {
       type: batch[i].type === 'del' ? messages.TYPE.DELETE : messages.TYPE.PUT,
+      dataset: opts.dataset,
       key: batch[i].key,
       value: this._encoding.encode(batch[i].value)
     }
@@ -305,11 +323,16 @@ Dat.prototype.createChangesStream = function (opts) {
   return this._index.log.createReadStream(opts)
 }
 
-Dat.prototype.createWriteStream = function () {
-  if (!this._index) return this._createProxyStream(this.createWriteStream)
+Dat.prototype.createWriteStream = function (opts) {
+  if (!this._index) return this._createProxyStream(this.createWriteStream, opts)
   var self = this
   return through.obj(function (data, enc, cb) {
-    self.batch([data], function (err) {
+    self._commit([{
+      type: data.type === 'del' ? messages.TYPE.DELETE : messages.TYPE.PUT,
+      dataset: opts.dataset,
+      key: data.key,
+      value: this._encoding.encode(data.value)
+    }], function (err) {
       cb(err)
     })
   })
@@ -351,7 +374,7 @@ Dat.prototype.createReadStream = function (opts) {
 
   var stream = this._layers
     .map(function (layer) {
-      var prefix = '!latest!' + layer[1] + '!'
+      var prefix = '!latest!' + layer[1] + '!' + (opts.dataset || '') + '!'
       var rs = self._index.data.createReadStream({
         gt: prefix + (opts.gt || ''),
         lt: prefix + (opts.lt || '\xff'),
@@ -368,7 +391,7 @@ Dat.prototype.createReadStream = function (opts) {
   var write = function (data, enc, cb) {
     var key = data.key.slice(data.key.lastIndexOf('!') + 1)
 
-    self.get(key, function (err, value) {
+    self.get(key, opts, function (err, value) {
       if (err && err.notFound) return cb()
       if (err) return cb(err)
       if (justKeys) return cb(null, key)

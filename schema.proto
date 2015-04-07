@@ -5,8 +5,9 @@ enum TYPE {
 
 message Operation {
   required TYPE type = 1;
-  required string key = 2;
-  optional bytes value = 3;
+  optional string dataset = 2;
+  required string key = 3;
+  optional bytes value = 4;
 }
 
 message Commit {
