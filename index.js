@@ -325,6 +325,7 @@ Dat.prototype.createChangesStream = function (opts) {
 
 Dat.prototype.createWriteStream = function (opts) {
   if (!this._index) return this._createProxyStream(this.createWriteStream, opts)
+  if (!opts) opts = {}
   var self = this
   return through.obj(function (data, enc, cb) {
     self._commit([{
