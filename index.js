@@ -332,7 +332,7 @@ Dat.prototype.createWriteStream = function (opts) {
       type: data.type === 'del' ? messages.TYPE.DELETE : messages.TYPE.PUT,
       dataset: opts.dataset,
       key: data.key,
-      value: this._encoding.encode(data.value)
+      value: self._encoding.encode(data.value)
     }], function (err) {
       cb(err)
     })
