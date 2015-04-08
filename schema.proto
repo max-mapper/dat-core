@@ -1,6 +1,6 @@
 enum TYPE {
-  PUT = 1;
-  DELETE = 2;
+  ROW_PUT = 1;
+  ROW_DELETE = 2;
 }
 
 message Operation {

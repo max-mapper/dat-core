@@ -23,9 +23,9 @@ tape('checkout', function (t) {
     var hash = db.head
     db.put('hello', 'welt', function (err) {
       t.error(err, 'no err')
-      db.checkout(hash).get('hello', function (err, val) {
+      db.checkout(hash).get('hello', function (err, row) {
         t.error(err, 'no err')
-        t.same(val, 'world')
+        t.same(row.value, 'world')
         t.end()
       })
     })
@@ -43,12 +43,12 @@ tape('put after checkout', function (t) {
       var checkout = db.checkout(hash)
       db.put('hello', 'verden', function (err) {
         t.error(err, 'no err')
-        db.get('hello', function (err, val) {
+        db.get('hello', function (err, row) {
           t.error(err, 'no err')
-          t.same(val, 'verden')
-          checkout.get('hello', function (err, val) {
+          t.same(row.value, 'verden')
+          checkout.get('hello', function (err, row) {
             t.error(err, 'no err')
-            t.same(val, 'world')
+            t.same(row.value, 'world')
             t.end()
           })
         })
@@ -68,12 +68,12 @@ tape('put in checkout', function (t) {
       var checkout = db.checkout(hash)
       checkout.put('hello', 'verden', function (err) {
         t.error(err, 'no err')
-        checkout.get('hello', function (err, val) {
+        checkout.get('hello', function (err, row) {
           t.error(err, 'no err')
-          t.same(val, 'verden')
-          db.get('hello', function (err, val) {
+          t.same(row.value, 'verden')
+          db.get('hello', function (err, row) {
             t.error(err, 'no err')
-            t.same(val, 'welt')
+            t.same(row.value, 'welt')
             t.end()
           })
         })

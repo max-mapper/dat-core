@@ -20,12 +20,12 @@ tape('clone', function (t) {
             clone.heads(function (err, heads) {
               t.error(err, 'no err')
               clone = clone.checkout(heads[0])
-              clone.get('test', function (err, val) {
+              clone.get('test', function (err, row) {
                 t.error(err, 'no err')
-                t.same(val, 'test')
-                clone.get('hello', function (err, val) {
+                t.same(row.value, 'test')
+                clone.get('hello', function (err, row) {
                   t.error(err, 'no err')
-                  t.same(val, 'welt')
+                  t.same(row.value, 'welt')
                   t.end()
                 })
               })

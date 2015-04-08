@@ -20,9 +20,12 @@ tape('put and get', function (t) {
 
   db.put('hello', 'world', function (err) {
     t.error(err, 'no err')
-    db.get('hello', function (err, val) {
+    db.get('hello', function (err, row) {
       t.error(err, 'no err')
-      t.same(val, 'world')
+      t.same(row.type, 'row')
+      t.ok(row.version, 'has version')
+      t.same(row.key, 'hello')
+      t.same(row.value, 'world')
       t.end()
     })
   })
@@ -35,9 +38,9 @@ tape('put, put and get', function (t) {
     t.error(err, 'no err')
     db.put('hello', 'verden', function (err) {
       t.error(err, 'no err')
-      db.get('hello', function (err, val) {
+      db.get('hello', function (err, row) {
         t.error(err, 'no err')
-        t.same(val, 'verden')
+        t.same(row.value, 'verden')
         t.end()
       })
     })
@@ -73,12 +76,12 @@ tape('batch and get', function (t) {
     value: 'verden'
   }], function (err) {
     t.error(err, 'no err')
-    db.get('hello', function (err, val) {
+    db.get('hello', function (err, row) {
       t.error(err, 'no err')
-      t.same(val, 'world')
-      db.get('hej', function (err, val) {
+      t.same(row.value, 'world')
+      db.get('hej', function (err, row) {
         t.error(err, 'no err')
-        t.same(val, 'verden')
+        t.same(row.value, 'verden')
         t.end()
       })
     })

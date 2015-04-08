@@ -20,6 +20,9 @@ var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
 var dataset = require('./lib/dataset')
 
+var ROW_PUT = messages.TYPE.ROW_PUT
+var ROW_DELETE = messages.TYPE.ROW_DELETE
+
 var noop = function () {}
 var getLayers = function (index, key, cb) {
   var result = []
@@ -249,25 +252,26 @@ Dat.prototype._getPointer = function (ptr, cb) {
   var i = ptr.lastIndexOf('!')
   var index = parseInt(ptr.slice(i + 1), 10)
   var self = this
+  var version = ptr.slice(0, i)
 
-  this._index.get(ptr.slice(0, i), function (err, node, commit) {
+  this._index.get(version, function (err, node, commit) {
     if (err) return cb(err)
     var entry = commit.operations[index]
-    if (entry.type === messages.TYPE.DELETE) return cb(notFound(entry.key))
-    cb(null, self._encoding.decode(entry.value))
+    if (entry.type === ROW_DELETE) return cb(notFound(entry.key))
+    cb(null, {type: 'row', key: entry.key, version: version, value: self._encoding.decode(entry.value)})
   })
 }
 
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
-  this._commit([{type: messages.TYPE.PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
+  this._commit([{type: ROW_PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
 }
 
 Dat.prototype.del = function (key, opts, cb) {
   if (typeof opts === 'function') return this.del(key, null, opts)
   if (!opts) opts = {}
-  this._commit([{type: messages.TYPE.DELETE, dataset: opts.dataset, key: key}], cb)
+  this._commit([{type: ROW_DELETE, dataset: opts.dataset, key: key}], cb)
 }
 
 Dat.prototype.batch = function (batch, opts, cb) {
@@ -277,7 +281,7 @@ Dat.prototype.batch = function (batch, opts, cb) {
   var operations = new Array(batch.length)
   for (var i = 0; i < batch.length; i++) {
     operations[i] = {
-      type: batch[i].type === 'del' ? messages.TYPE.DELETE : messages.TYPE.PUT,
+      type: batch[i].type === 'del' ? ROW_DELETE : ROW_PUT,
       dataset: opts.dataset,
       key: batch[i].key,
       value: this._encoding.encode(batch[i].value)
@@ -329,7 +333,7 @@ Dat.prototype.createWriteStream = function (opts) {
   var self = this
   return through.obj(function (data, enc, cb) {
     self._commit([{
-      type: data.type === 'del' ? messages.TYPE.DELETE : messages.TYPE.PUT,
+      type: data.type === 'del' ? ROW_DELETE : ROW_PUT,
       dataset: opts.dataset,
       key: data.key,
       value: self._encoding.encode(data.value)
@@ -392,12 +396,12 @@ Dat.prototype.createReadStream = function (opts) {
   var write = function (data, enc, cb) {
     var key = data.key.slice(data.key.lastIndexOf('!') + 1)
 
-    self.get(key, opts, function (err, value) {
+    self.get(key, opts, function (err, row) {
       if (err && err.notFound) return cb()
       if (err) return cb(err)
       if (justKeys) return cb(null, key)
-      if (justValues) return cb(null, value)
-      cb(null, {key: key, value: value})
+      if (justValues) return cb(null, row.value)
+      cb(null, row)
     })
   }
 
