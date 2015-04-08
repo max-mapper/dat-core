@@ -159,12 +159,21 @@ Dat.prototype.dataset = function (name) {
 }
 
 Dat.prototype.heads = function (cb) {
-  if (!this.opened) return this._createProxyStream(this.heads, cb)
-  return collect(this._index.heads.createValueStream(), cb)
+  if (!this.opened) return this._createProxyStream(this.heads, [cb])
+
+  var self = this
+  var write = function (key, enc, cb) {
+    self._index.merges.get(key, function (err, merged) {
+      if (err && !err.notFound) return cb(err)
+      cb(null, merged ? null : key)
+    })
+  }
+
+  return collect(pump(this._index.heads.createValueStream(), through.obj(write)), cb)
 }
 
 Dat.prototype.layers = function (cb) {
-  if (!this.opened) return this._createProxyStream(this.layers, cb)
+  if (!this.opened) return this._createProxyStream(this.layers, [cb])
   return collect(this._index.heads.createKeyStream(), cb)
 }
 
@@ -267,13 +276,13 @@ Dat.prototype._getPointer = function (ptr, cb) {
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
-  this._commit([{type: ROW_PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
+  this._commit(null, [{type: ROW_PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
 }
 
 Dat.prototype.del = function (key, opts, cb) {
   if (typeof opts === 'function') return this.del(key, null, opts)
   if (!opts) opts = {}
-  this._commit([{type: ROW_DELETE, dataset: opts.dataset, key: key}], cb)
+  this._commit(null, [{type: ROW_DELETE, dataset: opts.dataset, key: key}], cb)
 }
 
 Dat.prototype.batch = function (batch, opts, cb) {
@@ -289,16 +298,17 @@ Dat.prototype.batch = function (batch, opts, cb) {
       value: this._encoding.encode(batch[i].value)
     }
   }
-  this._commit(operations, cb)
+  this._commit(null, operations, cb)
 }
 
-Dat.prototype._commit = function (operations, cb) {
+Dat.prototype._commit = function (links, operations, cb) {
   if (!cb) cb = noop
   this.open(function (err, self) {
     if (err) return cb(err)
     self._lock(function (release) {
-      self._index.add(self.head && [self.head], {operations: operations}, function (err, node, layer) {
+      self._index.add(links || self.head, {operations: operations}, function (err, node, layer) {
         if (err) return release(cb, err)
+        if (links && (links[0] !== self.head && links[1] !== self.head)) return release(cb, null, node.key)
 
         if (!self._layerKey || self._layerKey !== layer) {
           self._layers.unshift([node.change, layer])
@@ -308,7 +318,7 @@ Dat.prototype._commit = function (operations, cb) {
         self._layerChange = self._layers[0][0] = node.change
         self.head = node.key
 
-        release(cb)
+        release(cb, null, node.key)
       })
     })
   })
@@ -325,16 +335,16 @@ Dat.prototype.flush = function (cb) {
 
 Dat.prototype.changes =
 Dat.prototype.createChangesStream = function (opts) {
-  if (!this.opened) return this._createProxyStream(this.createChangesStream, opts)
+  if (!this.opened) return this._createProxyStream(this.createChangesStream, [opts])
   return this._index.log.createReadStream(opts)
 }
 
 Dat.prototype.createWriteStream = function (opts) {
-  if (!this.opened) return this._createProxyStream(this.createWriteStream, opts)
+  if (!this.opened) return this._createProxyStream(this.createWriteStream, [opts])
   if (!opts) opts = {}
   var self = this
   return through.obj(function (data, enc, cb) {
-    self._commit([{
+    self._commit(null, [{
       type: data.type === 'del' ? ROW_DELETE : ROW_PUT,
       dataset: opts.dataset,
       key: data.key,
@@ -343,6 +353,41 @@ Dat.prototype.createWriteStream = function (opts) {
       cb(err)
     })
   })
+}
+
+Dat.prototype.merge =
+Dat.prototype.createMergeStream = function (headA, headB) {
+  if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB])
+  if (!headA && !headB) throw new Error('You need to provide two nodes')
+
+  var self = this
+  var operations = []
+  var stream = duplexify.obj()
+
+  var write = function (data, enc, cb) {
+    operations.push({
+      type: data.type === 'del' ? ROW_DELETE : ROW_PUT,
+      dataset: data.dataset,
+      key: data.key,
+      value: self._encoding.encode(data.value)
+    })
+
+    cb()
+  }
+
+  stream.on('prefinish', function () {
+    stream.cork()
+    self._commit([headA, headB], operations, function (err, head) {
+      if (err) return stream.destroy(err)
+      stream.head = head
+      stream.uncork()
+    })
+  })
+
+  stream.setReadable(false)
+  stream.setWritable(through.obj(write))
+
+  return stream
 }
 
 Dat.prototype.createKeyStream = function (opts) {
@@ -370,7 +415,7 @@ var emptyStream = function () {
 }
 
 Dat.prototype.createReadStream = function (opts) {
-  if (!this.opened) return this._createProxyStream(this.createReadStream, opts)
+  if (!this.opened) return this._createProxyStream(this.createReadStream, [opts])
   if (!opts) opts = {}
 
   var self = this
@@ -412,7 +457,7 @@ Dat.prototype.createReadStream = function (opts) {
 
 Dat.prototype.createReplicationStream =
 Dat.prototype.replicate = function (opts) {
-  if (!this.opened) return this._createProxyStream(this.replicate, opts)
+  if (!this.opened) return this._createProxyStream(this.replicate, [opts])
 
   var self = this
   var finalize = function (cb) {
@@ -436,14 +481,14 @@ Dat.prototype.push = function (opts) {
   return this.replicate(opts)
 }
 
-Dat.prototype._createProxyStream = function (method, opts) {
+Dat.prototype._createProxyStream = function (method, args) {
   var proxy = duplexify.obj()
 
   this.open(function (err, self) {
     if (err) return proxy.destroy(err)
     if (proxy.destroyed) return proxy.destroy()
 
-    var stream = method.call(self, opts)
+    var stream = method.apply(self, args)
 
     stream.on('pull', function (value) {
       proxy.emit('pull', value)
