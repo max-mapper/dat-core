@@ -53,6 +53,11 @@ Get a value node from the dat
 
 Delete a node from the dat
 
+#### `set = dat.dataset(name)`
+
+Returns a namespaced dataset (similar to a sublevel in leveldb).
+If you just use `dat.put` and `dat.get` it will use the default dataset (equaivalent of doing `dat.dataset()`.
+
 #### `stream = db.createReadStream([options])`
 
 Stream out values of the dat
