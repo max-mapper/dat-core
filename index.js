@@ -59,6 +59,7 @@ var Dat = function (dir, opts) {
   this.valueEncoding = opts.valueEncoding || opts.encoding || 'binary'
   this.head = null
   this.meta = null
+  this.opened = false
 
   this._encoding = encoding(this.valueEncoding)
   this._layers = []
@@ -146,6 +147,7 @@ var Dat = function (dir, opts) {
 
   this.open(function (err) {
     if (err) return self.emit('error', err)
+    self.opened = true
     self.emit('ready')
   })
 }
@@ -157,12 +159,12 @@ Dat.prototype.dataset = function (name) {
 }
 
 Dat.prototype.heads = function (cb) {
-  if (!this._index) return this._createProxyStream(this.heads, cb)
+  if (!this.opened) return this._createProxyStream(this.heads, cb)
   return collect(this._index.heads.createValueStream(), cb)
 }
 
 Dat.prototype.layers = function (cb) {
-  if (!this._index) return this._createProxyStream(this.layers, cb)
+  if (!this.opened) return this._createProxyStream(this.layers, cb)
   return collect(this._index.heads.createKeyStream(), cb)
 }
 
@@ -323,12 +325,12 @@ Dat.prototype.flush = function (cb) {
 
 Dat.prototype.changes =
 Dat.prototype.createChangesStream = function (opts) {
-  if (!this._index) return this._createProxyStream(this.createChangesStream, opts)
+  if (!this.opened) return this._createProxyStream(this.createChangesStream, opts)
   return this._index.log.createReadStream(opts)
 }
 
 Dat.prototype.createWriteStream = function (opts) {
-  if (!this._index) return this._createProxyStream(this.createWriteStream, opts)
+  if (!this.opened) return this._createProxyStream(this.createWriteStream, opts)
   if (!opts) opts = {}
   var self = this
   return through.obj(function (data, enc, cb) {
@@ -368,7 +370,7 @@ var emptyStream = function () {
 }
 
 Dat.prototype.createReadStream = function (opts) {
-  if (!this._index) return this._createProxyStream(this.createReadStream, opts)
+  if (!this.opened) return this._createProxyStream(this.createReadStream, opts)
   if (!opts) opts = {}
 
   var self = this
@@ -410,7 +412,7 @@ Dat.prototype.createReadStream = function (opts) {
 
 Dat.prototype.createReplicationStream =
 Dat.prototype.replicate = function (opts) {
-  if (!this._index) return this._createProxyStream(this.replicate, opts)
+  if (!this.opened) return this._createProxyStream(this.replicate, opts)
 
   var self = this
   var finalize = function (cb) {
