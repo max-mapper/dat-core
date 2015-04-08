@@ -74,7 +74,10 @@ tape('put in checkout', function (t) {
           db.get('hello', function (err, row) {
             t.error(err, 'no err')
             t.same(row.value, 'welt')
-            t.end()
+            db.heads(function (err, heads) {
+              t.same(heads.length, 2, 'has two heads now')
+              t.end()
+            })
           })
         })
       })
