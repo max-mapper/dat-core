@@ -96,12 +96,12 @@ and you then pull the remote's changes.
 
 They can also happen if you checkout a prevision revision and make changes.
 
-#### `stream = db.compare([branch1, branch2, ...])`
+#### `stream = db.diff(branch1, branch2)`
 
 Compare two or more branches with each other.
 The stream will emit key,value pairs that conflict across the branches
 
-#### `stream = db.merge([branch1, branch2, ...])`
+#### `stream = db.merge(branch1, branch2)`
 
 Returns a merge stream. You should write key,value pairs to this stream
 that conflicts across the branches (see the compare method above).

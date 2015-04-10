@@ -391,7 +391,7 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
     for (var i = 0; i < a._layers.length; i++) {
       for (var j = 0; j < b._layers.length; j++) {
         if (a._layers[i][1] === b._layers[j][1]) {
-          return Math.min(a._layers[i][0], b._layers[i][0])
+          return Math.min(a._layers[i][0], b._layers[j][0])
         }
       }
     }
