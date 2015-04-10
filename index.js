@@ -2,6 +2,7 @@ var events = require('events')
 var xtend = require('xtend')
 var duplexify = require('duplexify')
 var union = require('sorted-union-stream')
+var diff = require('sorted-diff-stream')
 var util = require('util')
 var lexint = require('lexicographic-integer')
 var collect = require('stream-collector')
@@ -189,7 +190,7 @@ var notFound = function (key) {
   return new errors.NotFoundError('Key not found in database [' + key + ']')
 }
 
-Dat.prototype.get = function (key, opts, cb) {
+Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
   if (typeof opts === 'function') return this.get(key, null, opts)
   if (!opts) opts = {}
 
@@ -199,26 +200,43 @@ Dat.prototype.get = function (key, opts, cb) {
     if (err) return cb(err)
     if (!self._layerKey) return cb(notFound(key))
 
+    var onoperation = function (err, op, node) {
+      if (err) return cb(err)
+      cb(null, {
+        type: op.type === ROW_PUT ? 'put' : 'del',
+        version: node.key,
+        change: node.change,
+        key: op.key,
+        value: op.value && self._encoding.decode(op.value)
+      })
+    }
+
+    var onpointer = function (err, ptr) {
+      if (err) return cb(err)
+      if (opts.change) return self._getOperation(ptr, onoperation) // TODO: does this trigger deopt since it changes return type?
+      self._getPointerEntry(ptr, cb)
+    }
+
     // TODO: fix rc where *latest* is updated in the middle of below block
     // which can break a checkout snapshot - workaround for now is forcing a change lookup
-    if (self._checkout) return self._getChange(key, cb)
+    if (self._checkout) return self._getChangePointer(key, onpointer)
 
     // TODO: remove this lookup - it should be cacheable
     self._index.heads.get(self._layerKey, function (err, head) { // TODO: if the head changes once it is always changed
       if (err) return cb(err)
-      if (head === self.head) return self._getLatest(key, cb)
-      self._getChange(key, cb)
+      if (head === self.head) return self._getLatestPointer(key, onpointer)
+      self._getChangePointer(key, onpointer)
     })
   })
 }
 
-Dat.prototype._getLatest = function (key, cb) { // fast track
+Dat.prototype._getLatestPointer = function (key, cb) { // fast track
   var self = this
 
   this._index.data.get('!latest!' + this._layerKey + '!' + key, function (err, ptr) {
     if (err && !err.notFound) return cb(err)
-    if (err) return self._getLayers(key, cb)
-    self._getPointer(ptr, cb)
+    if (err) return self._getLayersPointer(key, cb)
+    cb(null, ptr)
   })
 }
 
@@ -236,22 +254,22 @@ var getChangePointer = function (self, key, layer, change, cb) {
   })
 }
 
-Dat.prototype._getChange = function (key, cb) { // slow track
+Dat.prototype._getChangePointer = function (key, cb) { // slow track
   var self = this
   getChangePointer(this, key, this._layerKey, this._layerChange, function (err, ptr) {
     if (err) return cb(err)
-    if (!ptr) return self._getLayers(key, cb)
-    self._getPointer(ptr, cb)
+    if (!ptr) return self._getLayersPointer(key, cb)
+    cb(null, ptr)
   })
 }
 
-Dat.prototype._getLayers = function (key, cb) {
+Dat.prototype._getLayersPointer = function (key, cb) {
   var i = 0
   var self = this
 
   var loop = function (err, ptr) {
     if (err) return cb(err)
-    if (ptr) return self._getPointer(ptr, cb)
+    if (ptr) return cb(null, ptr)
     if (++i >= self._layers.length) return cb(notFound(key))
     getChangePointer(self, key, self._layers[i][1], self._layers[i][0], loop)
   }
@@ -259,17 +277,23 @@ Dat.prototype._getLayers = function (key, cb) {
   loop(null, null)
 }
 
-Dat.prototype._getPointer = function (ptr, cb) {
+Dat.prototype._getOperation = function (ptr, cb) {
   var i = ptr.lastIndexOf('!')
   var index = parseInt(ptr.slice(i + 1), 10)
-  var self = this
   var version = ptr.slice(0, i)
 
   this._index.get(version, function (err, node, commit) {
     if (err) return cb(err)
-    var entry = commit.operations[index]
+    cb(null, commit.operations[index], node)
+  })
+}
+
+Dat.prototype._getPointerEntry = function (ptr, cb) {
+  var self = this
+  this._getOperation(ptr, function (err, entry, node) {
+    if (err) return cb(err)
     if (entry.type === ROW_DELETE) return cb(notFound(entry.key))
-    cb(null, {type: 'row', key: entry.key, version: version, value: self._encoding.decode(entry.value)})
+    cb(null, {type: 'row', key: entry.key, version: node.key, value: self._encoding.decode(entry.value)})
   })
 }
 
@@ -353,6 +377,41 @@ Dat.prototype.createWriteStream = function (opts) {
       cb(err)
     })
   })
+}
+
+Dat.prototype.diff =
+Dat.prototype.createDiffStream = function (headA, headB, opts) {
+  var a = this.checkout(headA)
+  var b = this.checkout(headB)
+
+  var findFork = function () {
+    // TODO: we probably don't need a double loop here
+    // since the layers are sorted bottom -> top
+    // but we have "few" layers so its probably fine for now
+    for (var i = 0; i < a._layers.length; i++) {
+      for (var j = 0; j < b._layers.length; j++) {
+        if (a._layers[i][1] === b._layers[j][1]) {
+          return Math.min(a._layers[i][0], b._layers[i][0])
+        }
+      }
+    }
+    return 0 // nothing shared
+  }
+
+  var fork = -1
+  var filter = function (data, enc, cb) {
+    if (fork === -1) fork = findFork()
+    var a = data[0]
+    var b = data[1]
+    if (a && a.change < fork) a = data[0] = null
+    if (b && b.change < fork) b = data[1] = null
+    if (!a && !b) return cb()
+    if (!a && b.type === 'del') return cb()
+    if (!b && a.type === 'del') return cb()
+    cb(null, data)
+  }
+
+  return pump(diff(a.createReadStream({change: true}), b.createReadStream({change: true})), through.obj(filter))
 }
 
 Dat.prototype.merge =
