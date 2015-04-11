@@ -367,13 +367,18 @@ Dat.prototype.createWriteStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createWriteStream, [opts])
   if (!opts) opts = {}
   var self = this
-  return through.obj(function (data, enc, cb) {
-    self._commit(null, [{
+
+  var toOperation = function (data) {
+    return {
       type: data.type === 'del' ? ROW_DELETE : ROW_PUT,
       dataset: opts.dataset,
       key: data.key,
       value: self._encoding.encode(data.value)
-    }], function (err) {
+    }
+  }
+
+  return through.obj(function (data, enc, cb) {
+    self._commit(null, Array.isArray(data) ? data.map(toOperation) : [toOperation(data)], function (err) {
       cb(err)
     })
   })

@@ -60,3 +60,41 @@ tape('read-stream keys are sorted', function (t) {
     })
   })
 })
+
+tape('write-stream', function (t) {
+  var db = create()
+
+  var ws = db.createWriteStream()
+
+  ws.write({key: 'a', value: 'a'})
+  ws.write({key: 'b', value: 'b'})
+  ws.write({key: 'c', value: 'c'})
+
+  ws.end(function () {
+    collect(db.createKeyStream(), function (err, list) {
+      t.error(err, 'no err')
+      t.same(list, ['a', 'b', 'c'])
+      t.end()
+    })
+  })
+})
+
+tape('write-stream batch', function (t) {
+  var db = create()
+
+  var ws = db.createWriteStream()
+
+  ws.write([
+    {key: 'a', value: 'a'},
+    {key: 'b', value: 'b'},
+    {key: 'c', value: 'c'}
+  ])
+
+  ws.end(function () {
+    collect(db.createKeyStream(), function (err, list) {
+      t.error(err, 'no err')
+      t.same(list, ['a', 'b', 'c'])
+      t.end()
+    })
+  })
+})
