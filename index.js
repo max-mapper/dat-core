@@ -54,6 +54,7 @@ var Dat = function (dir, opts) {
     opts.db = dir
     dir = null
   }
+  if (dir) dir = path.resolve(dir)
 
   events.EventEmitter.call(this)
 
@@ -121,7 +122,7 @@ var Dat = function (dir, opts) {
     }
 
     var ondb = function (db) {
-      self._index = indexer(db, function (err) {
+      self._index = indexer(db, {path: dir}, function (err) {
         if (err) return cb(err)
         onindex()
       })
