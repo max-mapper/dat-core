@@ -91,7 +91,7 @@ var ready = function () {
     if (!/:\d+/.test(u)) u = u.replace(/\/$/, '') + ':6556'
     u = url.parse(u)
 
-    var req = http.request({method: 'POST', host: u.hostname, port: u.port})
+    var req = http.request({method: 'POST', host: u.hostname, port: u.port, path: u.path})
     var rs = db.createReplicationStream({mode: mode})
     var pushed = 0
     var pulled = 0
