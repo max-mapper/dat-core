@@ -12,7 +12,6 @@ var path = require('path')
 var pump = require('pump')
 var through = require('through2')
 var mkdirp = require('mkdirp')
-var levelup = require('levelup')
 var leveldown = require('leveldown-prebuilt')
 var errors = require('level-errors')
 var fs = require('fs')
@@ -121,8 +120,17 @@ var Dat = function (dir, opts) {
       else cb(null, self)
     }
 
+    var datPath = dir && path.join(dir, '.dat')
+
     var ondb = function (db) {
-      self._index = indexer(db, {path: dir}, function (err) {
+      self._index = indexer({db: db, path: datPath}, function (err) {
+        if (err) return cb(err)
+        onindex()
+      })
+    }
+
+    var onbackend = function (backend) {
+      self._index = indexer({path: datPath, backend: backend, multiprocess: opts.multiprocess !== false}, function (err) {
         if (err) return cb(err)
         onindex()
       })
@@ -133,16 +141,13 @@ var Dat = function (dir, opts) {
 
     if (!path) return cb(new Error('Invalid path'))
 
-    var datPath = path.join(dir, '.dat')
-    var datDb = path.join(datPath, 'db')
-
     fs.exists(datPath, function (exists) {
-      if (exists) return ondb(levelup(datDb, {db: opts.backend || leveldown}))
+      if (exists) return onbackend(opts.backend || leveldown)
       if (!opts.createIfMissing) return cb(new Error('No dat here'))
 
       mkdirp(datPath, function (err) {
         if (err) return cb(err)
-        ondb(levelup(datDb, {db: opts.backend || leveldown}))
+        onbackend(opts.backend || leveldown)
       })
     })
   })

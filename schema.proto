@@ -13,3 +13,113 @@ message Operation {
 message Commit {
   repeated Operation operations = 1;
 }
+
+message RPCServer {
+  repeated Callback callbacks = 1;
+  repeated Iterator iterators = 2;
+  repeated Update updates = 3;
+  repeated Add adds = 4;
+
+  message Update {
+    required uint32 changes = 1;
+    optional string mainLayer = 2;
+    optional string error = 3;
+    optional string layer = 4;
+    optional Node node = 5;
+  }
+
+  message Add {
+    required uint32 id = 1;
+    optional string error = 2;
+    optional bool notFound = 3;
+    optional Node value = 4;
+  }
+
+  message Node {
+    required uint64 change = 1;
+    required string key = 2;
+    required string log = 3;
+    required uint64 seq = 4;
+    required bytes value = 5;
+    repeated string links = 6;
+  }
+
+  message Callback {
+    required uint32 id = 1;
+    optional string error = 2;
+    optional bytes value = 3;
+  }
+
+  message Iterator {
+    required uint32 id = 1;
+    optional string error = 2;
+    optional bytes key = 3;
+    optional bytes value = 4;
+  }
+}
+
+message RPCClient {
+  repeated Put puts = 1;
+  repeated Get gets = 2;
+  repeated Delete deletes = 3;
+  repeated Batch batches = 4;
+  repeated Iterator iterators = 5;
+  repeated Add adds = 6;
+
+  message Add {
+    required uint32 id = 1;
+    repeated string links = 2;
+    required bytes value = 3;
+    optional Options options = 4;
+
+    message Options {
+      optional string hash = 1;
+      optional uint64 seq = 2;
+      optional string log = 3;
+    }
+  }
+
+  message Get {
+    required uint32 id = 1;
+    required bytes key = 2;
+  }
+
+  message Put {
+    required uint32 id = 1;
+    required bytes key = 3;
+    optional bytes value = 4;
+  }
+
+  message Delete {
+    required uint32 id = 1;
+    required bytes key = 2;
+  }
+
+  message Batch {
+    required uint32 id = 1;
+    repeated Operation ops = 2;
+
+    message Operation {
+      required string type = 1;
+      required bytes key = 2;
+      optional bytes value = 3;
+    }
+  }
+
+  message Iterator {
+    required uint32 id = 1;
+    optional uint32 batch = 2;
+    optional Options options = 3;
+
+    message Options {
+      optional bool keys = 1;
+      optional bool values = 2;
+      optional bytes gt = 3;
+      optional bytes gte = 4;
+      optional bytes lt = 5;
+      optional bytes lte = 6;
+      optional sint32 limit = 7;
+      optional bool reverse = 8;
+    }
+  }
+}
