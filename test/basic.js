@@ -22,7 +22,7 @@ tape('put and get', function (t) {
     t.error(err, 'no err')
     db.get('hello', function (err, row) {
       t.error(err, 'no err')
-      t.same(row.type, 'row')
+      t.same(row.content, 'row')
       t.ok(row.version, 'has version')
       t.same(row.key, 'hello')
       t.same(row.value, 'world')

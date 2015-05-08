@@ -23,7 +23,7 @@ var dataset = require('./lib/dataset')
 var PUT = messages.TYPE.PUT
 var DELETE = messages.TYPE.DELETE
 var ROW = messages.CONTENT.ROW
-var BLOB = messages.CONTENT.BLOB
+// var BLOB = messages.CONTENT.BLOB
 
 var noop = function () {}
 var getLayers = function (index, key, cb) {
