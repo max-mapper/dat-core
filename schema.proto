@@ -1,9 +1,15 @@
 enum TYPE {
-  ROW_PUT = 1;
-  ROW_DELETE = 2;
+  PUT = 1;
+  DELETE = 2;
+}
+
+enum CONTENT {
+  ROW = 1;
+  BLOB = 2;
 }
 
 message Operation {
+  optional CONTENT content = 5 [default=ROW];
   required TYPE type = 1;
   optional string dataset = 2;
   required string key = 3;

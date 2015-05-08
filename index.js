@@ -20,8 +20,10 @@ var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
 var dataset = require('./lib/dataset')
 
-var ROW_PUT = messages.TYPE.ROW_PUT
-var ROW_DELETE = messages.TYPE.ROW_DELETE
+var PUT = messages.TYPE.PUT
+var DELETE = messages.TYPE.DELETE
+var ROW = messages.CONTENT.ROW
+var BLOB = messages.CONTENT.BLOB
 
 var noop = function () {}
 var getLayers = function (index, key, cb) {
@@ -209,7 +211,7 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
     var onoperation = function (err, op, node) {
       if (err) return cb(err)
       cb(null, {
-        type: op.type === ROW_PUT ? 'put' : 'del',
+        type: op.type === PUT ? 'put' : 'del',
         version: node.key,
         change: node.change,
         key: op.key,
@@ -298,21 +300,21 @@ Dat.prototype._getPointerEntry = function (ptr, cb) {
   var self = this
   this._getOperation(ptr, function (err, entry, node) {
     if (err) return cb(err)
-    if (entry.type === ROW_DELETE) return cb(notFound(entry.key))
-    cb(null, {type: 'row', key: entry.key, version: node.key, value: self._encoding.decode(entry.value)})
+    if (entry.type === DELETE) return cb(notFound(entry.key))
+    cb(null, {content: entry.content === ROW ? 'row' : 'blob', key: entry.key, version: node.key, value: self._encoding.decode(entry.value)})
   })
 }
 
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
-  this._commit(null, [{type: ROW_PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
+  this._commit(null, [{type: PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
 }
 
 Dat.prototype.del = function (key, opts, cb) {
   if (typeof opts === 'function') return this.del(key, null, opts)
   if (!opts) opts = {}
-  this._commit(null, [{type: ROW_DELETE, dataset: opts.dataset, key: key}], cb)
+  this._commit(null, [{type: DELETE, dataset: opts.dataset, key: key}], cb)
 }
 
 Dat.prototype.batch = function (batch, opts, cb) {
@@ -322,7 +324,7 @@ Dat.prototype.batch = function (batch, opts, cb) {
   var operations = new Array(batch.length)
   for (var i = 0; i < batch.length; i++) {
     operations[i] = {
-      type: batch[i].type === 'del' ? ROW_DELETE : ROW_PUT,
+      type: batch[i].type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
       key: batch[i].key,
       value: this._encoding.encode(batch[i].value)
@@ -376,7 +378,7 @@ Dat.prototype.createWriteStream = function (opts) {
 
   var toOperation = function (data) {
     return {
-      type: data.type === 'del' ? ROW_DELETE : ROW_PUT,
+      type: data.type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
       key: data.key,
       value: self._encoding.encode(data.value)
@@ -436,7 +438,7 @@ Dat.prototype.createMergeStream = function (headA, headB) {
 
   var write = function (data, enc, cb) {
     operations.push({
-      type: data.type === 'del' ? ROW_DELETE : ROW_PUT,
+      type: data.type === 'del' ? DELETE : PUT,
       dataset: data.dataset,
       key: data.key,
       value: self._encoding.encode(data.value)
