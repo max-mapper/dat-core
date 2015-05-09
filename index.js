@@ -208,6 +208,7 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
     if (err) return cb(err)
     if (!self._layerKey) return cb(notFound(key))
 
+    var encoding = opts.encoding || self._encoding
     var onoperation = function (err, op, node) {
       if (err) return cb(err)
       cb(null, {
@@ -215,7 +216,7 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
         version: node.key,
         change: node.change,
         key: op.key,
-        value: op.value && self._encoding.decode(op.value)
+        value: op.value && encoding.decode(op.value)
       })
     }
 
@@ -394,9 +395,11 @@ Dat.prototype.createWriteStream = function (opts) {
 
 Dat.prototype.diff =
 Dat.prototype.createDiffStream = function (headA, headB, opts) {
+  var self = this
   var a = this.checkout(headA)
   var b = this.checkout(headB)
 
+  var binaryEncoding = encoding('binary')
   var findFork = function () {
     // TODO: we probably don't need a double loop here
     // since the layers are sorted bottom -> top
@@ -421,10 +424,23 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
     if (!a && !b) return cb()
     if (!a && b.type === 'del') return cb()
     if (!b && a.type === 'del') return cb()
+    if (a) a.value = self._encoding.decode(a.value)
+    if (b) b.value = self._encoding.decode(b.value)
     cb(null, data)
   }
 
-  return pump(diff(a.createReadStream({change: true}), b.createReadStream({change: true})), through.obj(filter))
+  var isEqual = function (a, b, cb) {
+    if (a.change === b.change) return cb(null, true)
+    if (a.value.length !== b.value.length) return cb(null, false)
+    for (var i = 0; i < a.value.length; i++) {
+      if (b.value[i] !== a.value[i]) return cb(null, false)
+    }
+    cb(null, true)
+  }
+
+  var readOpts = {change: true, encoding: binaryEncoding}
+
+  return pump(diff(a.createReadStream(readOpts), b.createReadStream(readOpts), isEqual), through.obj(filter))
 }
 
 Dat.prototype.merge =
