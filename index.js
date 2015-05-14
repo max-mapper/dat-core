@@ -23,7 +23,7 @@ var dataset = require('./lib/dataset')
 var PUT = messages.TYPE.PUT
 var DELETE = messages.TYPE.DELETE
 var ROW = messages.CONTENT.ROW
-// var BLOB = messages.CONTENT.BLOB
+var FILE = messages.CONTENT.FILE
 
 var noop = function () {}
 var getLayers = function (index, key, cb) {
@@ -125,14 +125,14 @@ var Dat = function (dir, opts) {
     var datPath = dir && path.join(dir, '.dat')
 
     var ondb = function (db) {
-      self._index = indexer({db: db, path: datPath}, function (err) {
+      self._index = indexer({db: db, path: datPath, blobs: opts.blobs}, function (err) {
         if (err) return cb(err)
         onindex()
       })
     }
 
     var onbackend = function (backend) {
-      self._index = indexer({path: datPath, backend: backend, multiprocess: opts.multiprocess !== false}, function (err) {
+      self._index = indexer({path: datPath, backend: backend, blobs: opts.blobs, multiprocess: opts.multiprocess !== false}, function (err) {
         if (err) return cb(err)
         onindex()
       })
@@ -198,6 +198,52 @@ var notFound = function (key) {
   return new errors.NotFoundError('Key not found in database [' + key + ']')
 }
 
+Dat.prototype.createFileReadStream = function (key) {
+  var stream = duplexify()
+  var self = this
+
+  stream.setWritable(false)
+  this.get(key, function (err, result) {
+    if (err) return stream.destroy(err)
+    if (result.content !== 'file') return stream.destroy(new Error('Key is not a file'))
+    if (!self._index.blobs) return stream.destroy(new Error('No blob store attached'))
+    stream.setReadable(self._index.blobs.createReadStream(result.value.key))
+  })
+
+  return stream
+}
+
+Dat.prototype.createFileWriteStream = function (key) {
+  var stream = duplexify()
+
+  var destroy = function (err) {
+    process.nextTick(function () {
+      stream.destroy(err)
+    })
+  }
+
+  stream.setReadable(false)
+  this.open(function (err, self) {
+    if (err) return stream.destroy(err)
+    if (!self._index.blobs) return destroy(new Error('No blob store attached'))
+
+    var ws = self._index.blobs.createWriteStream()
+
+    stream.on('prefinish', function () {
+      stream.cork()
+      self.put(key, messages.File.encode(ws), {content: 'file'}, function (err, value) {
+        if (err) return stream.destroy(err)
+        stream.row = value
+        stream.uncork()
+      })
+    })
+
+    stream.setWritable(ws)
+  })
+
+  return stream
+}
+
 Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
   if (typeof opts === 'function') return this.get(key, null, opts)
   if (!opts) opts = {}
@@ -212,11 +258,13 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
     var onoperation = function (err, op, node) {
       if (err) return cb(err)
       cb(null, {
+        content: op.content === FILE ? 'file' : 'row',
         type: op.type === PUT ? 'put' : 'del',
         version: node.key,
         change: node.change,
+        file: op.file,
         key: op.key,
-        value: op.value && encoding.decode(op.value)
+        value: op.value && op.content === FILE ? messages.File.decode(op.value) : encoding.decode(op.value)
       })
     }
 
@@ -302,14 +350,25 @@ Dat.prototype._getPointerEntry = function (ptr, cb) {
   this._getOperation(ptr, function (err, entry, node) {
     if (err) return cb(err)
     if (entry.type === DELETE) return cb(notFound(entry.key))
-    cb(null, {content: entry.content === ROW ? 'row' : 'blob', key: entry.key, version: node.key, value: self._encoding.decode(entry.value)})
+    cb(null, {
+      content: entry.content === FILE ? 'file' : 'row',
+      key: entry.key,
+      version: node.key,
+      value: entry.value && (entry.content === FILE ? messages.File.decode(entry.value) : self._encoding.decode(entry.value))
+    })
   })
 }
 
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
-  this._commit(null, [{type: PUT, dataset: opts.dataset, key: key, value: this._encoding.encode(value)}], cb)
+  this._commit(null, [{
+    type: PUT,
+    content: opts.content === 'file' ? FILE : ROW,
+    dataset: opts.dataset,
+    key: key,
+    value: Buffer.isBuffer(value) ? value : this._encoding.encode(value)
+  }], cb)
 }
 
 Dat.prototype.del = function (key, opts, cb) {
@@ -324,11 +383,12 @@ Dat.prototype.batch = function (batch, opts, cb) {
 
   var operations = new Array(batch.length)
   for (var i = 0; i < batch.length; i++) {
+    var b = batch[i]
     operations[i] = {
-      type: batch[i].type === 'del' ? DELETE : PUT,
+      type: b.type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
-      key: batch[i].key,
-      value: this._encoding.encode(batch[i].value)
+      key: b.key,
+      value: b.value && (Buffer.isBuffer(b.value) ? b.value : this._encoding.encode(b.value))
     }
   }
   this._commit(null, operations, cb)

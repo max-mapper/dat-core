@@ -5,15 +5,20 @@ enum TYPE {
 
 enum CONTENT {
   ROW = 1;
-  BLOB = 2;
+  FILE = 2;
 }
 
 message Operation {
-  optional CONTENT content = 5 [default=ROW];
+  optional CONTENT content = 5;
   required TYPE type = 1;
   optional string dataset = 2;
   required string key = 3;
   optional bytes value = 4;
+}
+
+message File {
+  required string key = 1;
+  optional uint64 size = 2;
 }
 
 message Commit {

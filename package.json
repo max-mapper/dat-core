@@ -4,6 +4,7 @@
   "description": "dat core",
   "main": "index.js",
   "dependencies": {
+    "content-addressable-blob-store": "^4.1.1",
     "cuid": "^1.2.4",
     "duplexify": "^3.3.0",
     "end-of-stream": "^1.1.0",
