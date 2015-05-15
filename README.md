@@ -66,11 +66,11 @@ Stream out values of the dat
 
 Stream in values to the dat
 
-#### `stream = db.createFileReadStream(key)`
+#### `stream = db.createFileReadStream(key, [options])`
 
 Read a file stored under the key specified. Returns a binary read stream.
 
-#### `stream = db.createFileWriteStream(key)`
+#### `stream = db.createFileWriteStream(key, [options])`
 
 Write a file to be stored under the key specified. Returns a binary write stream.
 
