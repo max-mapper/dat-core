@@ -198,12 +198,12 @@ var notFound = function (key) {
   return new errors.NotFoundError('Key not found in database [' + key + ']')
 }
 
-Dat.prototype.createFileReadStream = function (key) {
+Dat.prototype.createFileReadStream = function (key, opts) {
   var stream = duplexify()
   var self = this
 
   stream.setWritable(false)
-  this.get(key, function (err, result) {
+  this.get(key, opts, function (err, result) {
     if (err) return stream.destroy(err)
     if (result.content !== 'file') return stream.destroy(new Error('Key is not a file'))
     if (!self._index.blobs) return stream.destroy(new Error('No blob store attached'))
@@ -213,7 +213,9 @@ Dat.prototype.createFileReadStream = function (key) {
   return stream
 }
 
-Dat.prototype.createFileWriteStream = function (key) {
+Dat.prototype.createFileWriteStream = function (key, opts) {
+  if (!opts) opts = {}
+
   var stream = duplexify()
 
   var destroy = function (err) {
@@ -231,7 +233,8 @@ Dat.prototype.createFileWriteStream = function (key) {
 
     stream.on('prefinish', function () {
       stream.cork()
-      self.put(key, messages.File.encode(ws), {content: 'file'}, function (err, value) {
+      opts.content = 'file'
+      self.put(key, messages.File.encode(ws), opts, function (err, value) {
         if (err) return stream.destroy(err)
         stream.row = value
         stream.uncork()
