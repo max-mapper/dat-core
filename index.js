@@ -14,6 +14,9 @@ var through = require('through2')
 var mkdirp = require('mkdirp')
 var leveldown = require('leveldown-prebuilt')
 var errors = require('level-errors')
+var parallel = require('parallel-transform')
+var multiplex = require('multiplex')
+var after = require('after-all')
 var fs = require('fs')
 var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
@@ -611,11 +614,93 @@ Dat.prototype.replicate = function (opts) {
   if (!this.opened) return this._createProxyStream(this.replicate, [opts])
 
   var self = this
+  var fetchingBlobs = []
+  var blobs = this._index.blobs
+
   var finalize = function (cb) {
     self.flush(cb)
   }
 
-  return this._index.log.replicate(xtend(opts, {finalize: finalize}))
+  var plex = multiplex(function (stream, id) {
+    if (id.indexOf('file/') === -1) return stream.destroy(new Error('Unknown channel'))
+    if (!self._index.blobs) return stream.destroy(new Error('no blob store attached'))
+
+    var file = self._index.blobs.createReadStream(id.slice(5))
+
+    graphOut.cork() // cork to add a bit of flow control since we won't resolve graph nodes until blob is done anyways
+    pump(file, stream, function () {
+      graphOut.uncork()
+    })
+
+    plex.emit('push-file', file)
+  })
+
+  var fetchBlob = function (key, cb) {
+    if (!blobs) return cb()
+
+    blobs.exists(key, function (_, exists) {
+      if (exists) return cb()
+
+      if (fetchingBlobs.indexOf(key) > -1) return cb() // skip
+      fetchingBlobs.push(key)
+
+      var stream = plex.createStream('file/' + key, {chunked: true})
+      var file = blobs.createWriteStream()
+
+      pump(stream, file, function (err) {
+        if (err) return cb(err)
+        var i = fetchingBlobs.indexOf(key)
+        fetchingBlobs.splice(i, 1)
+        cb()
+      })
+
+      plex.emit('pull-file', file)
+    })
+  }
+
+  var queue = parallel(16, function (node, cb) {
+    var commit = messages.Commit.decode(node.value) // TODO: don't fully decode here - we just need to peek the enums
+
+    var next = after(function (err) {
+      if (err) return plex.destroy(err)
+      cb(null, node)
+    })
+
+    for (var i = 0; i < commit.operations.length; i++) {
+      var op = commit.operations[i]
+      if (op.content === FILE) fetchBlob(messages.File.decode(op.value).key, next())
+    }
+  })
+
+  var graph = this._index.log.replicate(xtend(opts, {finalize: finalize, process: queue}))
+  var graphOut = plex.createStream('graph')
+  var graphIn = plex.receiveStream('graph')
+  var ended = false
+
+  pump(graphIn, graph, graphOut, function (err) {
+    process.nextTick(function() {
+      if (!ended) plex.destroy(err)
+    })
+  })
+
+  graph.on('metadata', function (value) {
+    plex.emit('metadata', value)
+  })
+
+  graph.on('push', function () {
+    plex.emit('push')
+  })
+
+  graph.on('pull', function () {
+    plex.emit('pull')
+  })
+
+  graph.on('finish', function () {
+    ended = true
+    plex.end()
+  })
+
+  return plex
 }
 
 Dat.prototype.createPullStream =
@@ -641,12 +726,20 @@ Dat.prototype._createProxyStream = function (method, args) {
 
     var stream = method.apply(self, args)
 
-    stream.on('pull', function (value) {
-      proxy.emit('pull', value)
+    stream.on('pull', function () {
+      proxy.emit('pull')
     })
 
-    stream.on('push', function (value) {
-      proxy.emit('push', value)
+    stream.on('pull-file', function (file) {
+      proxy.emit('pull-file', file)
+    })
+
+    stream.on('push-file', function (file) {
+      proxy.emit('push-file', file)
+    })
+
+    stream.on('push', function () {
+      proxy.emit('push')
     })
 
     stream.on('metadata', function (value) {
