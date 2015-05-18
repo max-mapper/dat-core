@@ -675,12 +675,11 @@ Dat.prototype.replicate = function (opts) {
   var graph = this._index.log.replicate(xtend(opts, {finalize: finalize, process: queue}))
   var graphOut = plex.createStream('graph')
   var graphIn = plex.receiveStream('graph')
-  var ended = false
 
-  pump(graphIn, graph, graphOut, function (err) {
-    process.nextTick(function() {
-      if (!ended) plex.destroy(err)
-    })
+  pump(graphIn, graph, graphOut)
+
+  graph.on('error', function (err) {
+    plex.destroy(err)
   })
 
   graph.on('metadata', function (value) {
@@ -696,7 +695,6 @@ Dat.prototype.replicate = function (opts) {
   })
 
   graph.on('finish', function () {
-    ended = true
     plex.end()
   })
 
