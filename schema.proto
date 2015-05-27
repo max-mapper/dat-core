@@ -22,6 +22,7 @@ message File {
 }
 
 message Commit {
+  optional uint64 modified = 2;
   repeated Operation operations = 1;
 }
 

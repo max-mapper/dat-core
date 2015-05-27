@@ -410,6 +410,46 @@ Dat.prototype._getPointerEntry = function (ptr, cb) {
   })
 }
 
+Dat.prototype.status = function (cb) {
+  this.open(function (err, self) {
+    if (err) return cb(err)
+    if (!self.head) return cb(new Error('This dat is empty'))
+    self._index.get(self.head, function (err, node) {
+      if (err) return cb(err)
+
+      var value = messages.Commit.decode(node.value)
+      var result = {head: self.head, modified: new Date(value.modified), rows: 0, files: 0, versions: 0, size: 0}
+
+      var visit = function (node) {
+        var value = messages.Commit.decode(node.value)
+
+        result.versions++
+        result.size += node.value.length
+
+        for (var i = 0; i < value.operations.length; i++) {
+          var op = value.operations[i]
+          if (op.content === ROW) {
+            result.rows++
+          } else if (op.content === FILE) {
+            result.files++
+            result.size += messages.File.decode(op.value).size
+          }
+        }
+
+        if (!node.links.length) return cb(null, result)
+
+        // doesn't matter which link we visit
+        self._index.get(node.links[0], function (err, node) {
+          if (err) return cb(err)
+          visit(node)
+        })
+      }
+
+      visit(node)
+    })
+  })
+}
+
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
@@ -450,7 +490,7 @@ Dat.prototype._commit = function (links, operations, cb) {
   this.open(function (err, self) {
     if (err) return cb(err)
     self._lock(function (release) {
-      self._index.add(links || self.head, {operations: operations}, function (err, node, layer) {
+      self._index.add(links || self.head, {modified: Date.now(), operations: operations}, function (err, node, layer) {
         if (err) return release(cb, err)
         if (links && (links[0] !== self.head && links[1] !== self.head)) return release(cb, null, node.key)
 
