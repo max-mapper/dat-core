@@ -7,7 +7,7 @@
     "after-all": "^2.0.2",
     "content-addressable-blob-store": "^4.1.1",
     "cuid": "^1.2.4",
-    "duplexify": "^3.3.0",
+    "duplexify": "^3.4.1",
     "end-of-stream": "^1.1.0",
     "hyperlog": "^3.7.0",
     "level-errors": "^1.0.3",
