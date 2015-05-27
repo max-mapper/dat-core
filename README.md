@@ -53,6 +53,10 @@ Get a value node from the dat
 
 Delete a node from the dat
 
+#### `db.listDatasets(cb)`
+
+Returns a list of the datasets currently in use in this checkout
+
 #### `set = dat.dataset(name)`
 
 Returns a namespaced dataset (similar to a sublevel in leveldb).

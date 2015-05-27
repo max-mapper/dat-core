@@ -166,6 +166,51 @@ var Dat = function (dir, opts) {
 
 util.inherits(Dat, events.EventEmitter)
 
+Dat.prototype.listDatasets = function (cb) {
+  this.open(function (err, self) {
+    if (err) return cb(err)
+
+    var i = 0
+    var result = []
+
+    var peek = function (layer, cb) {
+      var loop = function (prev) {
+        var rs = self._index.data.createKeyStream({
+          gt: '!latest!' + layer + '!',
+          lt: '!latest!' + layer + '!' + (prev ? prev + '!' : '\xff'),
+          reverse: true,
+          limit: 1
+        })
+
+        collect(rs, function (err, keys) {
+          if (err) return cb(err)
+          if (!keys.length) return cb()
+
+          var dataset = keys[0].split('!')[3]
+          if (!dataset) return cb(null, result)
+
+          result.push(dataset)
+          loop(dataset)
+        })
+      }
+
+      loop(null)
+
+    }
+
+    var loop = function (err) {
+      if (err) return cb(err)
+      if (self._layers.length === i) return cb(null, result)
+      var layer = self._layers[i++]
+      var l = layer[1]
+
+      peek(l, loop)
+    }
+
+    loop()
+  })
+}
+
 Dat.prototype.dataset = function (name) {
   return dataset(name, this)
 }
