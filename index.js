@@ -18,6 +18,7 @@ var parallel = require('parallel-transform')
 var multiplex = require('multiplex')
 var after = require('after-all')
 var fs = require('fs')
+var commit = require('./lib/commit')
 var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
@@ -483,6 +484,10 @@ Dat.prototype.batch = function (batch, opts, cb) {
     }
   }
   this._commit(null, operations, cb)
+}
+
+Dat.prototype.commit = function (links, opts) {
+  return commit(this, opts)
 }
 
 Dat.prototype._commit = function (links, operations, cb) {
