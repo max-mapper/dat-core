@@ -419,7 +419,7 @@ Dat.prototype.status = function (cb) {
       if (err) return cb(err)
 
       var value = messages.Commit.decode(node.value)
-      var result = {head: self.head, modified: new Date(value.modified), rows: 0, files: 0, versions: 0, size: 0}
+      var result = {head: self.head, checkout: self._checkout, modified: new Date(value.modified), rows: 0, files: 0, versions: 0, size: 0}
 
       var visit = function (node) {
         var value = messages.Commit.decode(node.value)
