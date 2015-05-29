@@ -11,11 +11,11 @@ We use 'user' to refer to a clone of a repository being replicated amongst peers
 
 When user A writes data, their change is recorded in an append only log, e.g.:
 
-``
+```
 userA.put('foo', 'bar')
 => inserts foo = bar into the graph, key is a hash of the change, e.g. cb22b433hf7233
 => appends 'userA-changelog-1 = cb22b433hf7233'
-``
+```
 
 Subsequent changes made by userA will be recorded as `userA-changelog-2`, `userA-changelog-3` etc
 
