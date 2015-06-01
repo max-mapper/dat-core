@@ -612,7 +612,7 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
 Dat.prototype.merge =
 Dat.prototype.createMergeStream = function (headA, headB) {
   if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB])
-  if (!headA && !headB) throw new Error('You need to provide two nodes')
+  if (!headA || !headB) throw new Error('You need to provide two nodes')
 
   var self = this
   var operations = []
