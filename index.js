@@ -571,10 +571,11 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
   }
 
   var decode = function (obj) {
-    var i = obj.key.indexOf('!')
+    var key = obj.key
+    var i = key.indexOf('!')
     if (i > -1) {
-      obj.key = obj.key.slice(i + 1)
-      obj.dataset = obj.key.slice(0, i)
+      obj.key = key.slice(i + 1)
+      obj.dataset = key.slice(0, i)
     }
     obj.value = self._encoding.decode(obj.value)
   }
