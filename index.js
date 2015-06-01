@@ -665,7 +665,7 @@ var emptyStream = function () {
 }
 
 var toKey = function (data) {
-  return data.key.slice(data.key.lastIndexOf(data.key.lastIndexOf('!') + 1) + 1)
+  return data.key.slice(data.key.lastIndexOf('!', data.key.lastIndexOf('!') + 1) + 1)
 }
 
 Dat.prototype.createReadStream = function (opts) {
@@ -676,7 +676,7 @@ Dat.prototype.createReadStream = function (opts) {
   var justKeys = opts.keys && !opts.values
   var justValues = opts.values && !opts.keys
   var all = !!opts.all
-  var getOpts = all ? xtend(opts) : opts
+  var getOpts = xtend(opts)
 
   if (!this._layers.length) return emptyStream()
 
