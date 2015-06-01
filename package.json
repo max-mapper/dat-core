@@ -1,6 +1,6 @@
 {
   "name": "dat-core",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "dat core",
   "main": "index.js",
   "dependencies": {
