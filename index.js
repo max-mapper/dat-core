@@ -18,7 +18,6 @@ var parallel = require('parallel-transform')
 var multiplex = require('multiplex')
 var after = require('after-all')
 var fs = require('fs')
-var commit = require('./lib/commit')
 var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
@@ -419,7 +418,8 @@ Dat.prototype.status = function (cb) {
       if (err) return cb(err)
 
       var value = messages.Commit.decode(node.value)
-      var result = {head: self.head, checkout: self._checkout, modified: new Date(value.modified), rows: 0, files: 0, versions: 0, size: 0}
+      var datasets = {}
+      var result = {head: self.head, checkout: self._checkout, modified: new Date(value.modified), datasets: 0, rows: 0, files: 0, versions: 0, size: 0}
 
       var visit = function (node) {
         var value = messages.Commit.decode(node.value)
@@ -429,6 +429,10 @@ Dat.prototype.status = function (cb) {
 
         for (var i = 0; i < value.operations.length; i++) {
           var op = value.operations[i]
+          if (!datasets[op.dataset]) {
+            datasets[op.dataset] = true
+            result.datasets++
+          }
           if (op.content === ROW) {
             result.rows++
           } else if (op.content === FILE) {
@@ -486,9 +490,9 @@ Dat.prototype.batch = function (batch, opts, cb) {
   this._commit(null, operations, cb)
 }
 
-Dat.prototype.commit = function (links, opts) {
-  return commit(this, opts)
-}
+// Dat.prototype.commit = function (links, opts) {
+//   return commit(this, opts)
+// }
 
 Dat.prototype._commit = function (links, operations, cb) {
   if (!cb) cb = noop
