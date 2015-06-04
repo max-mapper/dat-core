@@ -529,7 +529,21 @@ Dat.prototype.flush = function (cb) {
 Dat.prototype.changes =
 Dat.prototype.createChangesStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createChangesStream, [opts])
-  return this._index.log.createReadStream(opts)
+
+  var self = this
+  var format = function (data, enc, cb) {
+    self._index.get(data.key, function (err, node, commit) {
+      if (err) return cb(err)
+      var change = {change: data.change, date: new Date(commit.modified), version: data.key, links: data.links, puts: 0, deletes: 0}
+      commit.operations.forEach(function (op) {
+        if (op.type === PUT) change.puts++
+        else change.deletes++
+      })
+      cb(null, change)
+    })
+  }
+
+  return pump(this._index.log.createReadStream(opts), through.obj(format))
 }
 
 Dat.prototype.createWriteStream = function (opts) {
