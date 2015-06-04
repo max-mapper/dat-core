@@ -1,6 +1,8 @@
 var events = require('events')
+var batcher = require('byte-stream')
 var xtend = require('xtend')
 var duplexify = require('duplexify')
+var pumpify = require('pumpify')
 var union = require('sorted-union-stream')
 var diff = require('sorted-diff-stream')
 var util = require('util')
@@ -560,11 +562,13 @@ Dat.prototype.createWriteStream = function (opts) {
     }
   }
 
-  return through.obj(function (data, enc, cb) {
-    self._commit(null, Array.isArray(data) ? data.map(toOperation) : [toOperation(data)], function (err) {
+  var write = function (batch, enc, cb) {
+    self._commit(null, batch.map(toOperation), function (err) {
       cb(err)
     })
-  })
+  }
+
+  return pumpify.obj(batcher({limit: opts.batchSize || 128}), through.obj(write))
 }
 
 Dat.prototype.diff =

@@ -95,16 +95,14 @@ tape('write-stream', function (t) {
   })
 })
 
-tape('write-stream batch', function (t) {
+tape('write-stream two batches', function (t) {
   var db = create()
 
-  var ws = db.createWriteStream()
+  var ws = db.createWriteStream({batchSize: 2})
 
-  ws.write([
-    {key: 'a', value: 'a'},
-    {key: 'b', value: 'b'},
-    {key: 'c', value: 'c'}
-  ])
+  ws.write({key: 'a', value: 'a'})
+  ws.write({key: 'b', value: 'b'})
+  ws.write({key: 'c', value: 'c'})
 
   ws.end(function () {
     collect(db.createKeyStream(), function (err, list) {
