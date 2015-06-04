@@ -730,7 +730,40 @@ Dat.prototype.createReadStream = function (opts) {
     })
   }
 
-  return pump(stream, through.obj(write))
+  var dataStream = pump(stream, through.obj(write))
+  var limit = opts.limit || -1
+
+  if (limit === -1) return dataStream
+
+  var limited = through.obj(function (data, enc, cb) {
+    limited.push(data)
+    if (!--limit) {
+      cleanup()
+      dataStream.destroy()
+      limited.end()
+    }
+    cb()
+  })
+
+  var cleanup = function () {
+    limited.removeListener('close', onclose)
+    limited.removeListener('error', onclose)
+    dataStream.removeListener('close', onclose)
+    dataStream.removeListener('error', onclose)
+  }
+
+  var onclose = function (err) {
+    cleanup()
+    dataStream.destroy(err)
+    limited.destroy(err)
+  }
+
+  limited.on('close', onclose)
+  limited.on('error', onclose)
+  dataStream.on('close', onclose)
+  dataStream.on('error', onclose)
+
+  return dataStream.pipe(limited)
 }
 
 Dat.prototype.createReplicationStream =

@@ -61,6 +61,22 @@ tape('read-stream keys are sorted', function (t) {
   })
 })
 
+tape('read-stream with a limit', function (t) {
+  var db = create()
+
+  db.put('c', 'c', function () {
+    db.put('a', 'a', function () {
+      db.put('b', 'b', function () {
+        collect(db.createKeyStream({limit: 2}), function (err, list) {
+          t.error(err, 'no err')
+          t.same(list, ['a', 'b'])
+          t.end()
+        })
+      })
+    })
+  })
+})
+
 tape('write-stream', function (t) {
   var db = create()
 
