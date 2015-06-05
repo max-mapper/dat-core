@@ -8,6 +8,13 @@ enum CONTENT {
   FILE = 2;
 }
 
+enum COMMIT_TYPE {
+  DATA = 1;
+  TRANSACTION_START = 2;
+  TRANSACTION_DATA = 3;
+  TRANSACTION_END = 4;
+}
+
 message Operation {
   optional CONTENT content = 5;
   required TYPE type = 1;
@@ -22,6 +29,7 @@ message File {
 }
 
 message Commit {
+  optional COMMIT_TYPE type = 3 [default = DATA];
   optional uint64 modified = 2;
   repeated Operation operations = 1;
 }
