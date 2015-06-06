@@ -56,6 +56,10 @@ var getLayers = function (index, key, cb) {
   loop(key)
 }
 
+var isTransaction = function (value) {
+  return value.type === TRANSACTION_START || value.type === TRANSACTION_DATA
+}
+
 var Dat = function (dir, opts) {
   if (!(this instanceof Dat)) return new Dat(dir, opts)
   if (!opts) opts = {}
@@ -107,7 +111,7 @@ var Dat = function (dir, opts) {
 
     var rollback = function (err, node, commit) {
       if (err) return cb(err)
-      if (commit.type === TRANSACTION_START || commit.type === TRANSACTION_DATA) {
+      if (isTransaction(commit)) {
         self._index.get(node.links[0], rollback)
       } else {
         oncheckout(node.key)
@@ -439,7 +443,7 @@ Dat.prototype.status = function (cb) {
       var datasets = {}
       var result = {
         head: self.head,
-        transaction: value.type === TRANSACTION_START || value.type === TRANSACTION_DATA,
+        transaction: isTransaction(value),
         checkout: self._checkout,
         modified: new Date(value.modified),
         datasets: 0,
@@ -452,7 +456,7 @@ Dat.prototype.status = function (cb) {
       var visit = function (node) {
         var value = messages.Commit.decode(node.value)
 
-        result.versions++
+        if (!isTransaction(value)) result.versions++
         result.size += node.value.length
         result.rows += value.puts + value.deletes
         result.files += value.files
