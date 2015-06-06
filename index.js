@@ -29,6 +29,11 @@ var DELETE = messages.TYPE.DELETE
 var ROW = messages.CONTENT.ROW
 var FILE = messages.CONTENT.FILE
 
+var DATA = messages.COMMIT_TYPE.DATA
+var TRANSACTION_DATA = messages.COMMIT_TYPE.TRANSACTION_DATA
+var TRANSACTION_START = messages.COMMIT_TYPE.TRANSACTION_START
+var TRANSACTION_END = messages.COMMIT_TYPE.TRANSACTION_END
+
 var noop = function () {}
 var getLayers = function (index, key, cb) {
   var result = []
@@ -100,10 +105,19 @@ var Dat = function (dir, opts) {
       })
     }
 
+    var rollback = function (err, node, commit) {
+      if (err) return cb(err)
+      if (commit.type === TRANSACTION_START || commit.type === TRANSACTION_DATA) {
+        self._index.get(node.links[0], rollback)
+      } else {
+        oncheckout(node.key)
+      }
+    }
+
     var onlayer = function (layer) {
       self._index.heads.get(layer, function (err, head) {
         if (err) return cb(err)
-        oncheckout(head)
+        self._index.get(head, rollback)
       })
     }
 
@@ -423,7 +437,17 @@ Dat.prototype.status = function (cb) {
 
       var value = messages.Commit.decode(node.value)
       var datasets = {}
-      var result = {head: self.head, checkout: self._checkout, modified: new Date(value.modified), datasets: 0, rows: 0, files: 0, versions: 0, size: 0}
+      var result = {
+        head: self.head,
+        transaction: value.type === TRANSACTION_START || value.type === TRANSACTION_DATA,
+        checkout: self._checkout,
+        modified: new Date(value.modified),
+        datasets: 0,
+        rows: 0,
+        files: 0,
+        versions: 0,
+        size: 0
+      }
 
       var visit = function (node) {
         var value = messages.Commit.decode(node.value)
@@ -471,7 +495,7 @@ Dat.prototype.status = function (cb) {
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
-  this._commit(null, [{
+  this._commit(null, DATA, [{
     type: PUT,
     content: opts.content === 'file' ? FILE : ROW,
     dataset: opts.dataset,
@@ -483,7 +507,7 @@ Dat.prototype.put = function (key, value, opts, cb) {
 Dat.prototype.del = function (key, opts, cb) {
   if (typeof opts === 'function') return this.del(key, null, opts)
   if (!opts) opts = {}
-  this._commit(null, [{type: DELETE, dataset: opts.dataset, key: key}], cb)
+  this._commit(null, DATA, [{type: DELETE, dataset: opts.dataset, key: key}], cb)
 }
 
 Dat.prototype.batch = function (batch, opts, cb) {
@@ -500,10 +524,10 @@ Dat.prototype.batch = function (batch, opts, cb) {
       value: b.value && (Buffer.isBuffer(b.value) ? b.value : this._encoding.encode(b.value))
     }
   }
-  this._commit(null, operations, cb)
+  this._commit(null, DATA, operations, cb)
 }
 
-Dat.prototype._commit = function (links, operations, cb) {
+Dat.prototype._commit = function (links, type, operations, cb) {
   if (!cb) cb = noop
   this.open(function (err, self) {
     if (err) return cb(err)
@@ -537,7 +561,14 @@ Dat.prototype._commit = function (links, operations, cb) {
     self._index.operations.batch(batch, function (err) {
       if (err) return cb(err)
       self._lock(function (release) {
-        self._index.add(links || self.head, {modified: Date.now(), puts: puts, deletes: deletes, files: files, operations: key}, function (err, node, layer) {
+        self._index.add(links || self.head, {
+          type: type,
+          modified: Date.now(),
+          puts: puts,
+          deletes: deletes,
+          files: files,
+          operations: key
+        }, function (err, node, layer) {
           if (err) return release(cb, err)
           if (links && (links[0] !== self.head && links[1] !== self.head)) return release(cb, null, node.key)
 
@@ -603,13 +634,41 @@ Dat.prototype.createWriteStream = function (opts) {
     }
   }
 
+  var started = true
+  var startTransaction = function (fn) {
+    self._commit(null, TRANSACTION_START, [], function (err) {
+      if (err) return fn(err)
+      started = true
+      startTransaction = function (fn) { fn() }
+      fn()
+    })
+  }
+
   var write = function (batch, enc, cb) {
-    self._commit(null, batch.map(toOperation), function (err) {
+    self._commit(null, DATA, batch.map(toOperation), function (err) {
       cb(err)
     })
   }
 
-  return pumpify.obj(batcher({limit: opts.batchSize || 128}), through.obj(write))
+  var writeTransaction = function (batch, enc, cb) {
+    startTransaction(function (err) {
+      if (err) return cb(err)
+      self._commit(null, TRANSACTION_DATA, batch.map(toOperation), function (err) {
+        cb(err)
+      })
+    })
+  }
+
+  var endTransaction = function (cb) {
+    if (!started) return cb()
+    self._commit(null, TRANSACTION_END, [], function (err) {
+      cb(err)
+    })
+  }
+
+  var writer = opts.transaction ? through.obj(writeTransaction, endTransaction) : through.obj(write)
+
+  return pumpify.obj(batcher({limit: opts.batchSize || 128}), writer)
 }
 
 Dat.prototype.diff =
@@ -694,7 +753,7 @@ Dat.prototype.createMergeStream = function (headA, headB) {
 
   stream.on('prefinish', function () {
     stream.cork()
-    self._commit([headA, headB], operations, function (err, head) {
+    self._commit([headA, headB], messages.COMMIT_TYPE.DATA, operations, function (err, head) {
       if (err) return stream.destroy(err)
       stream.head = head
       stream.uncork()
