@@ -1,4 +1,5 @@
 var events = require('events')
+var framedHash = require('framed-hash')
 var batcher = require('byte-stream')
 var xtend = require('xtend')
 var duplexify = require('duplexify')
@@ -16,14 +17,12 @@ var through = require('through2')
 var mkdirp = require('mkdirp')
 var leveldown = require('leveldown-prebuilt')
 var errors = require('level-errors')
-var parallel = require('parallel-transform')
-var multiplex = require('multiplex')
-var after = require('after-all')
 var fs = require('fs')
 var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
 var dataset = require('./lib/dataset')
+var replicate = require('./lib/replicate')
 
 var PUT = messages.TYPE.PUT
 var DELETE = messages.TYPE.DELETE
@@ -309,6 +308,7 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
 
     var encoding = opts.encoding || self._encoding
     var onoperation = function (err, op, node) {
+      console.log(err, op, node)
       if (err) return cb(err)
       cb(null, {
         content: op.content === FILE ? 'file' : 'row',
@@ -388,13 +388,15 @@ Dat.prototype._getLayersPointer = function (key, cb) {
 }
 
 Dat.prototype._getOperation = function (ptr, cb) {
-  var i = ptr.lastIndexOf('!')
-  var index = parseInt(ptr.slice(i + 1), 10)
-  var version = ptr.slice(0, i)
+  var nodeKey = ptr.slice(0, ptr.indexOf('!'))
+  var self = this
 
-  this._index.get(version, function (err, node, commit) {
+  this._index.log.get(nodeKey, function (err, node) {
     if (err) return cb(err)
-    cb(null, commit.operations[index], node)
+    self._index.operations.get(ptr.slice(nodeKey.length + 1), {valueEncoding: 'binary'}, function (err, op) {
+      if (err) return cb(err)
+      cb(null, messages.Operation.decode(op), node)
+    })
   })
 }
 
@@ -428,27 +430,36 @@ Dat.prototype.status = function (cb) {
 
         result.versions++
         result.size += node.value.length
+        result.rows += value.puts + value.deletes
+        result.files += value.files
 
-        for (var i = 0; i < value.operations.length; i++) {
-          var op = value.operations[i]
+        var rs = self._index.operations.createValueStream({
+          gt: value.operations + '!',
+          lt: value.operations + '!~',
+          valueEncoding: 'binary'
+        })
+
+        var write = function (data, enc, cb) {
+          var op = messages.Operation.decode(data)
           if (!datasets[op.dataset]) {
             datasets[op.dataset] = true
             result.datasets++
           }
-          if (op.content === ROW) {
-            result.rows++
-          } else if (op.content === FILE) {
-            result.files++
-            result.size += messages.File.decode(op.value).size
-          }
+          result.size += data.length
+          if (op.content === FILE) result.size += messages.File.decode(op.value).size
+
+          cb()
         }
 
-        if (!node.links.length) return cb(null, result)
-
-        // doesn't matter which link we visit
-        self._index.get(node.links[0], function (err, node) {
+        pump(rs, through.obj(write), function (err) {
           if (err) return cb(err)
-          visit(node)
+          if (!node.links.length) return cb(null, result)
+
+          // doesn't matter which link we visit
+          self._index.get(node.links[0], function (err, node) {
+            if (err) return cb(err)
+            visit(node)
+          })
         })
       }
 
@@ -492,28 +503,54 @@ Dat.prototype.batch = function (batch, opts, cb) {
   this._commit(null, operations, cb)
 }
 
-// Dat.prototype.commit = function (links, opts) {
-//   return commit(this, opts)
-// }
-
 Dat.prototype._commit = function (links, operations, cb) {
   if (!cb) cb = noop
   this.open(function (err, self) {
     if (err) return cb(err)
-    self._lock(function (release) {
-      self._index.add(links || self.head, {modified: Date.now(), operations: operations}, function (err, node, layer) {
-        if (err) return release(cb, err)
-        if (links && (links[0] !== self.head && links[1] !== self.head)) return release(cb, null, node.key)
 
-        if (!self._layerKey || self._layerKey !== layer) {
-          self._layers.unshift([node.change, layer])
-          self._layerKey = layer
-        }
+    var hash = framedHash('sha256')
+    var batch = new Array(operations.length)
+    var puts = 0
+    var deletes = 0
+    var files = 0
 
-        self._layerChange = self._layers[0][0] = node.change
-        self.head = node.key
+    for (var i = 0; i < operations.length; i++) {
+      var op = operations[i]
+      var val = messages.Operation.encode(op)
 
-        release(cb, null, node.key)
+      if (op.content === FILE) files++
+
+      if (op.type === DELETE) deletes++
+      else puts++
+
+      hash.update(val)
+      batch[i] = {
+        type: 'put',
+        key: lexint.pack(i, 'hex'),
+        value: val
+      }
+    }
+
+    var key = hash.digest('hex')
+    for (var j = 0; j < operations.length; j++) batch[j].key = key + '!' + batch[j].key
+
+    self._index.operations.batch(batch, function (err) {
+      if (err) return cb(err)
+      self._lock(function (release) {
+        self._index.add(links || self.head, {modified: Date.now(), puts: puts, deletes: deletes, files: files, operations: key}, function (err, node, layer) {
+          if (err) return release(cb, err)
+          if (links && (links[0] !== self.head && links[1] !== self.head)) return release(cb, null, node.key)
+
+          if (!self._layerKey || self._layerKey !== layer) {
+            self._layers.unshift([node.change, layer])
+            self._layerKey = layer
+          }
+
+          self._layerChange = self._layers[0][0] = node.change
+          self.head = node.key
+
+          release(cb, null, node.key)
+        })
       })
     })
   })
@@ -536,12 +573,16 @@ Dat.prototype.createChangesStream = function (opts) {
   var format = function (data, enc, cb) {
     self._index.get(data.key, function (err, node, commit) {
       if (err) return cb(err)
-      var change = {change: data.change, date: new Date(commit.modified), version: data.key, links: data.links, puts: 0, deletes: 0}
-      commit.operations.forEach(function (op) {
-        if (op.type === PUT) change.puts++
-        else change.deletes++
+
+      cb(null, {
+        change: data.change,
+        date: new Date(commit.modified),
+        version: data.key,
+        links: data.links,
+        puts: commit.puts,
+        deletes: commit.deletes,
+        files: commit.files
       })
-      cb(null, change)
     })
   }
 
@@ -773,93 +814,7 @@ Dat.prototype.createReadStream = function (opts) {
 Dat.prototype.createReplicationStream =
 Dat.prototype.replicate = function (opts) {
   if (!this.opened) return this._createProxyStream(this.replicate, [opts])
-
-  var self = this
-  var fetchingBlobs = []
-  var blobs = this._index.blobs
-
-  var finalize = function (cb) {
-    self.flush(cb)
-  }
-
-  var plex = multiplex(function (stream, id) {
-    if (id.indexOf('file/') === -1) return stream.destroy(new Error('Unknown channel'))
-    if (!self._index.blobs) return stream.destroy(new Error('no blob store attached'))
-
-    var file = self._index.blobs.createReadStream(id.slice(5))
-
-    graphOut.cork() // cork to add a bit of flow control since we won't resolve graph nodes until blob is done anyways
-    pump(file, stream, function () {
-      graphOut.uncork()
-    })
-
-    plex.emit('push-file', file)
-  })
-
-  var fetchBlob = function (key, cb) {
-    if (!blobs) return cb()
-
-    blobs.exists(key, function (_, exists) {
-      if (exists) return cb()
-
-      if (fetchingBlobs.indexOf(key) > -1) return cb() // skip
-      fetchingBlobs.push(key)
-
-      var stream = plex.createStream('file/' + key, {chunked: true})
-      var file = blobs.createWriteStream()
-
-      pump(stream, file, function (err) {
-        if (err) return cb(err)
-        var i = fetchingBlobs.indexOf(key)
-        fetchingBlobs.splice(i, 1)
-        cb()
-      })
-
-      plex.emit('pull-file', file)
-    })
-  }
-
-  var queue = parallel(16, function (node, cb) {
-    var commit = messages.Commit.decode(node.value) // TODO: don't fully decode here - we just need to peek the enums
-
-    var next = after(function (err) {
-      if (err) return plex.destroy(err)
-      cb(null, node)
-    })
-
-    for (var i = 0; i < commit.operations.length; i++) {
-      var op = commit.operations[i]
-      if (op.content === FILE) fetchBlob(messages.File.decode(op.value).key, next())
-    }
-  })
-
-  var graph = this._index.log.replicate(xtend(opts, {finalize: finalize, process: queue}))
-  var graphOut = plex.createStream('graph')
-  var graphIn = plex.receiveStream('graph')
-
-  pump(graphIn, graph, graphOut)
-
-  graph.on('error', function (err) {
-    plex.destroy(err)
-  })
-
-  graph.on('metadata', function (value) {
-    plex.emit('metadata', value)
-  })
-
-  graph.on('push', function () {
-    plex.emit('push')
-  })
-
-  graph.on('pull', function () {
-    plex.emit('pull')
-  })
-
-  graph.on('finish', function () {
-    plex.end()
-  })
-
-  return plex
+  return replicate(this, opts)
 }
 
 Dat.prototype.createPullStream =

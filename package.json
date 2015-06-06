@@ -10,6 +10,7 @@
     "cuid": "^1.2.4",
     "duplexify": "^3.4.1",
     "end-of-stream": "^1.1.0",
+    "framed-hash": "^1.0.0",
     "hyperlog": "^3.7.0",
     "level-errors": "^1.0.3",
     "leveldown-prebuilt": "^1.0.3",
