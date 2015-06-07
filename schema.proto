@@ -9,6 +9,7 @@ enum CONTENT {
 }
 
 enum COMMIT_TYPE {
+  INIT = 5;
   DATA = 1;
   TRANSACTION_START = 2;
   TRANSACTION_DATA = 3;

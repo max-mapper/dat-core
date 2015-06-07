@@ -29,6 +29,7 @@ var DELETE = messages.TYPE.DELETE
 var ROW = messages.CONTENT.ROW
 var FILE = messages.CONTENT.FILE
 
+var INIT = messages.COMMIT_TYPE.INIT
 var DATA = messages.COMMIT_TYPE.DATA
 var TRANSACTION_DATA = messages.COMMIT_TYPE.TRANSACTION_DATA
 var TRANSACTION_START = messages.COMMIT_TYPE.TRANSACTION_START
@@ -87,6 +88,21 @@ var Dat = function (dir, opts) {
 
   var self = this
 
+  this.init = thunky(function (cb) {
+    self.open(function (err) {
+      if (err) return cb(err)
+      if (self.head) return cb(null, self)
+      self._index.add(null, {type: INIT, modified: Date.now()}, function (err, node, layer) {
+        if (err) return cb(err)
+        self.head = node.key
+        self._layers.unshift([node.change, layer])
+        self._layerKey = layer
+        self._layerChange = node.change
+        cb(null, self)
+      })
+    })
+  })
+
   this.open = thunky(function (cb) {
     var oncheckout = function (head) {
       getLayers(self._index, head, function (err, layers) {
@@ -112,6 +128,7 @@ var Dat = function (dir, opts) {
     var rollback = function (err, node, commit) {
       if (err) return cb(err)
       if (isTransaction(commit)) {
+        self._checkout = true
         self._index.get(node.links[0], rollback)
       } else {
         oncheckout(node.key)
@@ -455,12 +472,12 @@ Dat.prototype.status = function (cb) {
       var visit = function (node) {
         var value = messages.Commit.decode(node.value)
 
-        if (!isTransaction(value)) result.versions++
+        if (!isTransaction(value) && value.type !== INIT) result.versions++
         result.size += node.value.length
         result.rows += value.puts + value.deletes
         result.files += value.files
 
-        var rs = self._index.operations.createValueStream({
+        var rs = !value.operations ? emptyStream() : self._index.operations.createValueStream({
           gt: value.operations + '!',
           lt: value.operations + '!~',
           valueEncoding: 'binary'
@@ -532,7 +549,7 @@ Dat.prototype.batch = function (batch, opts, cb) {
 
 Dat.prototype._commit = function (links, type, operations, cb) {
   if (!cb) cb = noop
-  this.open(function (err, self) {
+  this.init(function (err, self) {
     if (err) return cb(err)
 
     var hash = framedHash('sha256')

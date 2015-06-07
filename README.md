@@ -41,6 +41,11 @@ Create a new dat instance. Options include
 String containing the current head revision of the dat.
 Everytime you mutate the dat this head changes.
 
+#### `db.init([cb])`
+
+Inits the dat by adding a root node to the graph if one hasn't been added already.
+Is called implicitly when you do a mutating operation.
+
 #### `db.put(key, value, [cb])`
 
 Insert a value into the dat
