@@ -326,7 +326,6 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
 
     var encoding = opts.encoding || self._encoding
     var onoperation = function (err, op, node) {
-      console.log(err, op, node)
       if (err) return cb(err)
       cb(null, {
         content: op.content === FILE ? 'file' : 'row',
