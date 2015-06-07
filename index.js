@@ -637,15 +637,8 @@ Dat.prototype.createWriteStream = function (opts) {
     }
   }
 
-  var started = true
-  var startTransaction = function (fn) {
-    self._commit(null, TRANSACTION_START, [], function (err) {
-      if (err) return fn(err)
-      started = true
-      startTransaction = function (fn) { fn() }
-      fn()
-    })
-  }
+  var prev
+  var first = false
 
   var write = function (batch, enc, cb) {
     self._commit(null, DATA, batch.map(toOperation), function (err) {
@@ -654,22 +647,29 @@ Dat.prototype.createWriteStream = function (opts) {
   }
 
   var writeTransaction = function (batch, enc, cb) {
-    startTransaction(function (err) {
-      if (err) return cb(err)
-      self._commit(null, TRANSACTION_DATA, batch.map(toOperation), function (err) {
+    if (!prev) {
+      prev = batch
+      cb()
+    } else {
+      var type = first ? TRANSACTION_START : TRANSACTION_DATA
+      first = false
+      self._commit(null, type, prev.map(toOperation), function (err) {
+        prev = batch
         cb(err)
       })
-    })
+    }
   }
 
   var endTransaction = function (cb) {
-    if (!started) return cb()
-    self._commit(null, TRANSACTION_END, [], function (err) {
+    if (!prev) return cb()
+    self._commit(null, first ? DATA : TRANSACTION_END, prev.map(toOperation), function (err) {
       cb(err)
     })
   }
 
-  var writer = opts.transaction ? through.obj(writeTransaction, endTransaction) : through.obj(write)
+  var writer = opts.transaction ?
+    through.obj({highWaterMark: 0}, writeTransaction, endTransaction) :
+    through.obj({highWaterMark: 1}, write)
 
   return pumpify.obj(batcher({limit: opts.batchSize || 128}), writer)
 }
