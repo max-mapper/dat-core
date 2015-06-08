@@ -635,6 +635,7 @@ Dat.prototype.createChangesStream = function (opts) {
       if (err) return cb(err)
 
       cb(null, {
+        root: commit.type === INIT,
         change: data.change,
         date: new Date(commit.modified),
         version: data.key,
