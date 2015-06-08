@@ -148,6 +148,18 @@ db.put('hello', 'world', function () {
 })
 ```
 
+If you want to make this checkout persistent, i.e. your default head, set the `{persistent: true}` option
+
+``` js
+var anotherDat = db.checkout(someHead, {persistent: true})
+
+anotherDat.on('ready', function () {
+  // someHash if your default head now if you create a new dat instance
+})
+```
+
+To reset your persistent head to the previous use `db.checkout(false, {persistent: true})`
+
 ## License
 
 MIT

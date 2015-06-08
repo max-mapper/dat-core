@@ -143,22 +143,29 @@ var Dat = function (dir, opts) {
     }
 
     var onindex = function () {
-      self.meta = self._index.meta // expose
+      var onpersist = function (err) {
+        if (err) return cb(err)
 
-      if (opts.checkout) {
-        self._checkout = true
-        oncheckout(opts.checkout)
-        return
+        var checkout = opts.checkout || self._index.checkout
+
+        if (checkout) {
+          self._checkout = true
+          oncheckout(checkout)
+          return
+        }
+
+        if (opts.layer) {
+          self._checkout = true
+          onlayer(opts.layer)
+          return
+        }
+
+        if (self._index.mainLayer) onlayer(self._index.mainLayer)
+        else cb(null, self)
       }
 
-      if (opts.layer) {
-        self._checkout = true
-        onlayer(opts.layer)
-        return
-      }
-
-      if (self._index.mainLayer) onlayer(self._index.mainLayer)
-      else cb(null, self)
+      if (opts.persistent) self._index.changeCheckout(opts.checkout, onpersist)
+      else onpersist()
     }
 
     var datPath = dir && path.join(dir, '.dat')
@@ -268,10 +275,6 @@ Dat.prototype.heads = function (cb) {
 Dat.prototype.layers = function (cb) {
   if (!this.opened) return this._createProxyStream(this.layers, [cb])
   return collect(this._index.heads.createKeyStream(), cb)
-}
-
-Dat.prototype.layer = function (layer, opts) {
-  return new Dat(null, xtend({parent: this, valueEncoding: this.valueEncoding, layer: layer}, opts))
 }
 
 Dat.prototype.checkout = function (head, opts) {
@@ -471,7 +474,6 @@ Dat.prototype.status = function (cb) {
 
       var visit = function (node) {
         var value = messages.Commit.decode(node.value)
-
         if (!isTransaction(value) && value.type !== INIT) result.versions++
         result.size += node.value.length
         result.rows += value.puts + value.deletes
