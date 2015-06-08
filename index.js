@@ -75,14 +75,13 @@ var Dat = function (dir, opts) {
 
   this.valueEncoding = opts.valueEncoding || opts.encoding || 'binary'
   this.head = null
-  this.meta = null
   this.opened = false
+  this.inCheckout = false
 
   this._encoding = encoding(this.valueEncoding)
   this._layers = []
   this._layerChange = 0
   this._layerKey = null
-  this._checkout = false
   this._lock = mutexify()
   this._index = null
 
@@ -128,7 +127,7 @@ var Dat = function (dir, opts) {
     var rollback = function (err, node, commit) {
       if (err) return cb(err)
       if (isTransaction(commit)) {
-        self._checkout = true
+        self.inCheckout = true
         self._index.get(node.links[0], rollback)
       } else {
         oncheckout(node.key)
@@ -154,14 +153,14 @@ var Dat = function (dir, opts) {
           if (checkout) {
             self._index.expand(checkout, function (err, checkout) {
               if (err) return cb(err)
-              self._checkout = true
+              self.inCheckout = true
               oncheckout(checkout)
             })
             return
           }
 
           if (opts.layer) {
-            self._checkout = true
+            self.inCheckout = true
             onlayer(opts.layer)
             return
           }
@@ -373,7 +372,7 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
 
     // TODO: fix rc where *latest* is updated in the middle of below block
     // which can break a checkout snapshot - workaround for now is forcing a change lookup
-    if (self._checkout) return self._getChangePointer(key, onpointer)
+    if (self.inCheckout) return self._getChangePointer(key, onpointer)
 
     // TODO: remove this lookup - it should be cacheable
     self._index.heads.get(self._layerKey, function (err, head) { // TODO: if the head changes once it is always changed
@@ -470,7 +469,7 @@ Dat.prototype.status = function (cb) {
       var result = {
         head: self.head,
         transaction: isTransaction(value),
-        checkout: self._checkout,
+        checkout: self.inCheckout,
         modified: new Date(value.modified),
         datasets: 0,
         rows: 0,
