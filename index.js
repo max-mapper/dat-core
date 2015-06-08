@@ -143,29 +143,36 @@ var Dat = function (dir, opts) {
     }
 
     var onindex = function () {
-      var onpersist = function (err) {
+      self._index.expand(opts.checkout, function (err, checkout) {
         if (err) return cb(err)
 
-        var checkout = opts.checkout || self._index.checkout
+        var onpersist = function (err) {
+          if (err) return cb(err)
 
-        if (checkout) {
-          self._checkout = true
-          oncheckout(checkout)
-          return
+          checkout = checkout || self._index.checkout
+
+          if (checkout) {
+            self._index.expand(checkout, function (err, checkout) {
+              if (err) return cb(err)
+              self._checkout = true
+              oncheckout(checkout)
+            })
+            return
+          }
+
+          if (opts.layer) {
+            self._checkout = true
+            onlayer(opts.layer)
+            return
+          }
+
+          if (self._index.mainLayer) onlayer(self._index.mainLayer)
+          else cb(null, self)
         }
 
-        if (opts.layer) {
-          self._checkout = true
-          onlayer(opts.layer)
-          return
-        }
-
-        if (self._index.mainLayer) onlayer(self._index.mainLayer)
-        else cb(null, self)
-      }
-
-      if (opts.persistent) self._index.changeCheckout(opts.checkout, onpersist)
-      else onpersist()
+        if (opts.persistent) self._index.changeCheckout(checkout, onpersist)
+        else onpersist()
+      })
     }
 
     var datPath = dir && path.join(dir, '.dat')
