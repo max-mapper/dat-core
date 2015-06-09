@@ -36,6 +36,7 @@ message Commit {
   optional uint64 deletes = 5;
   optional uint64 files = 6;
   optional string operations = 7;
+  optional string message = 8;
 }
 
 message RPCServer {
