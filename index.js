@@ -639,6 +639,7 @@ Dat.prototype.createChangesStream = function (opts) {
         change: data.change,
         date: new Date(commit.modified),
         version: data.key,
+        message: commit.message,
         links: data.links,
         puts: commit.puts,
         deletes: commit.deletes,
@@ -762,8 +763,8 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
 }
 
 Dat.prototype.merge =
-Dat.prototype.createMergeStream = function (headA, headB, message) {
-  if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB])
+Dat.prototype.createMergeStream = function (headA, headB, opts) {
+  if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB, opts])
   if (!headA || !headB) throw new Error('You need to provide two nodes')
 
   var self = this
@@ -783,7 +784,7 @@ Dat.prototype.createMergeStream = function (headA, headB, message) {
 
   stream.on('prefinish', function () {
     stream.cork()
-    self._commit([headA, headB], messages.COMMIT_TYPE.DATA, operations, message, function (err, head) {
+    self._commit([headA, headB], messages.COMMIT_TYPE.DATA, operations, opts.message, function (err, head) {
       if (err) return stream.destroy(err)
       stream.head = head
       stream.uncork()
