@@ -592,8 +592,8 @@ Dat.prototype._commit = function (links, type, operations, message, cb) {
         self._index.add(links || self.head, {
           type: type,
           modified: Date.now(),
-          puts: puts,
           message: message,
+          puts: puts,
           deletes: deletes,
           files: files,
           operations: key
@@ -765,6 +765,7 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
 Dat.prototype.merge =
 Dat.prototype.createMergeStream = function (headA, headB, opts) {
   if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB, opts])
+  if (!opts) opts = {}
   if (!headA || !headB) throw new Error('You need to provide two nodes')
 
   var self = this
