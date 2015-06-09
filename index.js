@@ -529,13 +529,13 @@ Dat.prototype.put = function (key, value, opts, cb) {
     dataset: opts.dataset,
     key: key,
     value: Buffer.isBuffer(value) ? value : this._encoding.encode(value)
-  }], cb)
+  }], opts.message, cb)
 }
 
 Dat.prototype.del = function (key, opts, cb) {
   if (typeof opts === 'function') return this.del(key, null, opts)
   if (!opts) opts = {}
-  this._commit(null, DATA, [{type: DELETE, dataset: opts.dataset, key: key}], cb)
+  this._commit(null, DATA, [{type: DELETE, dataset: opts.dataset, key: key}], opts.message, cb)
 }
 
 Dat.prototype.batch = function (batch, opts, cb) {
@@ -552,10 +552,10 @@ Dat.prototype.batch = function (batch, opts, cb) {
       value: b.value && (Buffer.isBuffer(b.value) ? b.value : this._encoding.encode(b.value))
     }
   }
-  this._commit(null, DATA, operations, cb)
+  this._commit(null, DATA, operations, opts.message, cb)
 }
 
-Dat.prototype._commit = function (links, type, operations, cb) {
+Dat.prototype._commit = function (links, type, operations, message, cb) {
   if (!cb) cb = noop
   this.init(function (err, self) {
     if (err) return cb(err)
@@ -593,6 +593,7 @@ Dat.prototype._commit = function (links, type, operations, cb) {
           type: type,
           modified: Date.now(),
           puts: puts,
+          message: message,
           deletes: deletes,
           files: files,
           operations: key
@@ -638,6 +639,7 @@ Dat.prototype.createChangesStream = function (opts) {
         change: data.change,
         date: new Date(commit.modified),
         version: data.key,
+        message: commit.message,
         links: data.links,
         puts: commit.puts,
         deletes: commit.deletes,
@@ -667,7 +669,7 @@ Dat.prototype.createWriteStream = function (opts) {
   var first = false
 
   var write = function (batch, enc, cb) {
-    self._commit(null, DATA, batch.map(toOperation), function (err) {
+    self._commit(null, DATA, batch.map(toOperation), opts.message, function (err) {
       cb(err)
     })
   }
@@ -679,7 +681,7 @@ Dat.prototype.createWriteStream = function (opts) {
     } else {
       var type = first ? TRANSACTION_START : TRANSACTION_DATA
       first = false
-      self._commit(null, type, prev.map(toOperation), function (err) {
+      self._commit(null, type, prev.map(toOperation), opts.message, function (err) {
         prev = batch
         cb(err)
       })
@@ -688,7 +690,7 @@ Dat.prototype.createWriteStream = function (opts) {
 
   var endTransaction = function (cb) {
     if (!prev) return cb()
-    self._commit(null, first ? DATA : TRANSACTION_END, prev.map(toOperation), function (err) {
+    self._commit(null, first ? DATA : TRANSACTION_END, prev.map(toOperation), opts.message, function (err) {
       cb(err)
     })
   }
@@ -761,8 +763,8 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
 }
 
 Dat.prototype.merge =
-Dat.prototype.createMergeStream = function (headA, headB) {
-  if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB])
+Dat.prototype.createMergeStream = function (headA, headB, opts) {
+  if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB, opts])
   if (!headA || !headB) throw new Error('You need to provide two nodes')
 
   var self = this
@@ -782,7 +784,7 @@ Dat.prototype.createMergeStream = function (headA, headB) {
 
   stream.on('prefinish', function () {
     stream.cork()
-    self._commit([headA, headB], messages.COMMIT_TYPE.DATA, operations, function (err, head) {
+    self._commit([headA, headB], messages.COMMIT_TYPE.DATA, operations, opts.message, function (err, head) {
       if (err) return stream.destroy(err)
       stream.head = head
       stream.uncork()
