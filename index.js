@@ -633,6 +633,7 @@ Dat.prototype.createChangesStream = function (opts) {
   var format = function (data, enc, cb) {
     self._index.get(data.key, function (err, node, commit) {
       if (err) return cb(err)
+      if (isTransaction(commit)) return cb()
 
       cb(null, {
         root: commit.type === INIT,
@@ -681,7 +682,7 @@ Dat.prototype.createWriteStream = function (opts) {
     } else {
       var type = first ? TRANSACTION_START : TRANSACTION_DATA
       first = false
-      self._commit(null, type, prev.map(toOperation), opts.message, function (err) {
+      self._commit(null, type, prev.map(toOperation), null, function (err) {
         prev = batch
         cb(err)
       })
