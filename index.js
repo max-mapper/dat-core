@@ -630,22 +630,41 @@ Dat.prototype.createChangesStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createChangesStream, [opts])
 
   var self = this
+  var puts = 0
+  var deletes = 0
+  var files = 0
+  var links = null
+
   var format = function (data, enc, cb) {
     self._index.get(data.key, function (err, node, commit) {
       if (err) return cb(err)
-      if (isTransaction(commit)) return cb()
 
-      cb(null, {
+      if (isTransaction(commit)) {
+        puts += commit.puts
+        deletes += commit.deletes
+        files += commit.files
+        if (!links) links = data.links
+        return cb()
+      }
+
+      var change = {
         root: commit.type === INIT,
         change: data.change,
         date: new Date(commit.modified),
         version: data.key,
         message: commit.message,
-        links: data.links,
-        puts: commit.puts,
-        deletes: commit.deletes,
-        files: commit.files
-      })
+        links: links || data.links,
+        puts: puts + commit.puts,
+        deletes: deletes + commit.deletes,
+        files: files + commit.files
+      }
+
+      puts = 0
+      deletes = 0
+      files = 0
+      links = null
+
+      cb(null, change)
     })
   }
 
