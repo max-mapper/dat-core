@@ -630,22 +630,25 @@ Dat.prototype.createChangesStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createChangesStream, [opts])
 
   var self = this
-  var puts = 0
-  var deletes = 0
-  var files = 0
-  var links = null
+
+  var resolve = function (change, cb) {
+    self._index.get(change.links[0], function (err, node, commit) {
+      if (err) return cb(err)
+      if (commit.type !== TRANSACTION_DATA) return cb(null, change)
+      change.puts += commit.puts
+      change.deletes += commit.deletes
+      change.files += commit.files
+      change.links = node.links
+      if (commit.type !== TRANSACTION_START) resolve(change, cb)
+      else cb(null, change)
+    })
+  }
 
   var format = function (data, enc, cb) {
     self._index.get(data.key, function (err, node, commit) {
       if (err) return cb(err)
 
-      if (isTransaction(commit)) {
-        puts += commit.puts
-        deletes += commit.deletes
-        files += commit.files
-        if (!links) links = data.links
-        return cb()
-      }
+      if (isTransaction(commit)) return cb()
 
       var change = {
         root: commit.type === INIT,
@@ -653,18 +656,14 @@ Dat.prototype.createChangesStream = function (opts) {
         date: new Date(commit.modified),
         version: data.key,
         message: commit.message,
-        links: links || data.links,
-        puts: puts + commit.puts,
-        deletes: deletes + commit.deletes,
-        files: files + commit.files
+        links: data.links,
+        puts: commit.puts,
+        deletes: commit.deletes,
+        files: commit.files
       }
 
-      puts = 0
-      deletes = 0
-      files = 0
-      links = null
-
-      cb(null, change)
+      if (commit.type !== TRANSACTION_END) return cb(null, change)
+      resolve(change, cb)
     })
   }
 
@@ -686,7 +685,7 @@ Dat.prototype.createWriteStream = function (opts) {
   }
 
   var prev
-  var first = false
+  var first = true
 
   var write = function (batch, enc, cb) {
     self._commit(null, DATA, batch.map(toOperation), opts.message, function (err) {
