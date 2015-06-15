@@ -709,7 +709,9 @@ Dat.prototype.createWriteStream = function (opts) {
 
   var endTransaction = function (cb) {
     if (!prev) return cb()
+    stream.cork()
     self._commit(null, first ? DATA : TRANSACTION_END, prev.map(toOperation), opts.message, function (err) {
+      stream.uncork()
       cb(err)
     })
   }
@@ -718,7 +720,8 @@ Dat.prototype.createWriteStream = function (opts) {
     through.obj({highWaterMark: 0}, writeTransaction, endTransaction) :
     through.obj({highWaterMark: 1}, write)
 
-  return pumpify.obj(batcher({limit: opts.batchSize || 128}), writer)
+  var stream = pumpify.obj(batcher({limit: opts.batchSize || 128}), writer)
+  return stream
 }
 
 Dat.prototype.diff =
