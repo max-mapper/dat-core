@@ -17,7 +17,7 @@ var dat = require('dat-core')
 var db = dat('./test')
 
 db.put('hello', 'world', function () { // insert value
-  db.get('hello', functoin (err, result) {
+  db.get('hello', function (err, result) {
     console.log(result)   // prints result
     console.log(db.head) // the 'head' of the database graph (a hash)
   })
