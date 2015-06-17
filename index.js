@@ -460,61 +460,25 @@ Dat.prototype.status = function (cb) {
   this.open(function (err, self) {
     if (err) return cb(err)
     if (!self.head) return cb(new Error('This dat is empty'))
-    self._index.get(self.head, function (err, node) {
+
+    var head = self.head
+    self._index.meta.get('status!' + head, {valueEncoding: messages.Status}, function (err, status) {
       if (err) return cb(err)
 
-      var value = messages.Commit.decode(node.value)
-      var datasets = {}
-      var result = {
-        head: self.head,
-        transaction: isTransaction(value),
-        checkout: self.inCheckout,
-        modified: new Date(value.modified),
-        datasets: 0,
-        rows: 0,
-        files: 0,
-        versions: 0,
-        size: 0
-      }
-
-      var visit = function (node) {
-        var value = messages.Commit.decode(node.value)
-        if (!isTransaction(value) && value.type !== INIT) result.versions++
-        result.size += node.value.length
-        result.rows += value.puts + value.deletes
-        result.files += value.files
-
-        var rs = !value.operations ? emptyStream() : self._index.operations.createValueStream({
-          gt: value.operations + '!',
-          lt: value.operations + '!~',
-          valueEncoding: 'binary'
+      self.listDatasets(function (err, sets) {
+        if (err) return cb(err)
+        cb(null, {
+          head: head,
+          transaction: isTransaction(status),
+          checkout: self.inCheckout,
+          modified: new Date(status.modified),
+          datasets: sets.length,
+          rows: status.rows,
+          files: status.files,
+          versions: status.versions,
+          size: status.size
         })
-
-        var write = function (data, enc, cb) {
-          var op = messages.Operation.decode(data)
-          if (!datasets[op.dataset]) {
-            datasets[op.dataset] = true
-            result.datasets++
-          }
-          result.size += data.length
-          if (op.content === FILE) result.size += messages.File.decode(op.value).size
-
-          cb()
-        }
-
-        pump(rs, through.obj(write), function (err) {
-          if (err) return cb(err)
-          if (!node.links.length) return cb(null, result)
-
-          // doesn't matter which link we visit
-          self._index.get(node.links[0], function (err, node) {
-            if (err) return cb(err)
-            visit(node)
-          })
-        })
-      }
-
-      visit(node)
+      })
     })
   })
 }
