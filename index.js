@@ -513,6 +513,7 @@ Dat.prototype.batch = function (batch, opts, cb) {
     var b = batch[i]
     operations[i] = {
       type: b.type === 'del' ? DELETE : PUT,
+      content: opts.content,
       dataset: opts.dataset,
       key: b.key,
       value: b.value && (Buffer.isBuffer(b.value) ? b.value : valueEncoding.encode(b.value))
