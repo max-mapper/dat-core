@@ -16,8 +16,10 @@ var dat = require('dat-core')
 
 var db = dat('./test')
 
-db.put('hello', 'world', function () { // insert value
+db.put('hello', 'world', function (err) { // insert value
+  if (err) return handle(err) // something went wrong
   db.get('hello', function (err, result) {
+    if (err) return handle(err) // something went wrong
     console.log(result)   // prints result
     console.log(db.head) // the 'head' of the database graph (a hash)
   })
@@ -28,17 +30,23 @@ db.put('hello', 'world', function () { // insert value
 
 #### `db = dat(pathOrLevelDb, [options])`
 
-Create a new dat instance. Options include
+Create a new dat instance.
 
-``` js
+##### Options
+
+```
 {
-  valueEncoding: 'json' | 'binary' | 'utf-8'
+  checkout:        // database version to access. default is latest
+  valueEncoding:   // 'json' | 'binary' | 'utf-8' or a custom encoder instance
+  createIfMissing: // true or false, default false. creates dat folder if it doesnt exist
+  backend:         // a leveldown compatible instance to use (default is leveldown)
+  blobs:           // an abstract-blob-store compatible instance to use (default is content-addressable-blob-store)
 }
 ```
 
 #### `db.head`
 
-String containing the current head revision of the dat.
+String property containing the current head revision of the dat.
 Everytime you mutate the dat this head changes.
 
 #### `db.init([cb])`
@@ -46,21 +54,52 @@ Everytime you mutate the dat this head changes.
 Inits the dat by adding a root node to the graph if one hasn't been added already.
 Is called implicitly when you do a mutating operation.
 
-#### `db.put(key, value, [cb])`
+`cb` (if specified) will be called with one argument, `(error)`
+
+#### `db.put(key, value, [opts], [cb])`
 
 Insert a value into the dat
 
-#### `db.get(key, cb)`
+`cb` (if specified) will be called with one argument, `(error)`
+
+##### Options
+
+- `dataset` - the dataset to use
+- `valueEncoding` - an encoder instance to use to encode the value
+
+#### `db.get(key, [options], cb)`
 
 Get a value node from the dat
 
-#### `db.del(key, cb)`
+`cb` will be called with two arguments, `(error, value)`. If successful, `value` will have these keys:
 
-Delete a node from the dat
+```
+{
+  content:  // 'file' or 'row'
+  type:     // 'put' or 'del'
+  version:  // version hash
+  change:   // internal change number
+  key:      // row key
+  value:    // row value
+}
+```
+
+##### Options
+
+- `dataset` - the dataset to use
+- `valueEncoding` - an encoder instance to use to decode the value
+
+#### `db.del(key, [cb])`
+
+Delete a node from the dat by key
+
+`cb` (if specified) will be called with one argument, `(error)`
 
 #### `db.listDatasets(cb)`
 
 Returns a list of the datasets currently in use in this checkout
+
+`cb` will be called with two arguments, `(error, datasets)` where `datasets` is an array of strings (dataset names)
 
 #### `set = dat.dataset(name)`
 
@@ -159,6 +198,23 @@ anotherDat.on('ready', function () {
 ```
 
 To reset your persistent head to the previous use `db.checkout(false, {persistent: true})`
+
+## Custom Encoders
+
+Wherever you can specify `valueEncoding`, in addition to the built in string types you can also pass in an object with `encode` and `decode` methods.
+
+For example, here is the implementation of the built-in JSON encoder:
+
+```js
+var json = {
+  encode: function (obj) {
+    return new Buffer(JSON.stringify(obj))
+  },
+  decode: function (buf) {
+    return JSON.parse(buf.toString())
+  }
+}
+```
 
 ## License
 

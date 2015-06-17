@@ -73,12 +73,12 @@ var Dat = function (dir, opts) {
 
   events.EventEmitter.call(this)
 
-  this.valueEncoding = opts.valueEncoding || opts.encoding || 'binary'
+  this.valueEncoding = opts.valueEncoding || 'binary'
   this.head = null
   this.opened = false
   this.inCheckout = false
 
-  this._encoding = encoding(this.valueEncoding)
+  this._valueEncoding = encoding(this.valueEncoding)
   this._layers = []
   this._layerChange = 0
   this._layerKey = null
@@ -350,7 +350,7 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
     if (err) return cb(err)
     if (!self._layerKey) return cb(notFound(key))
 
-    var encoding = opts.encoding || self._encoding
+    var valueEncoding = self._getValueEncoding(opts.valueEncoding)
     var onoperation = function (err, op, node) {
       if (err) return cb(err)
       cb(null, {
@@ -358,9 +358,8 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
         type: op.type === PUT ? 'put' : 'del',
         version: node.key,
         change: node.change,
-        file: op.file,
         key: op.key,
-        value: op.value && op.content === FILE ? messages.File.decode(op.value) : encoding.decode(op.value)
+        value: op.value && op.content === FILE ? messages.File.decode(op.value) : valueEncoding.decode(op.value)
       })
     }
 
@@ -452,7 +451,7 @@ Dat.prototype._getPointerEntry = function (ptr, cb) {
       content: entry.content === FILE ? 'file' : 'row',
       key: entry.key,
       version: node.key,
-      value: entry.value && (entry.content === FILE ? messages.File.decode(entry.value) : self._encoding.decode(entry.value))
+      value: entry.value && (entry.content === FILE ? messages.File.decode(entry.value) : self._valueEncoding.decode(entry.value))
     })
   })
 }
@@ -523,12 +522,14 @@ Dat.prototype.status = function (cb) {
 Dat.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   if (!opts) opts = {}
+  var valueEncoding = this._getValueEncoding(opts.valueEncoding)
+
   this._commit(null, DATA, [{
     type: PUT,
     content: opts.content === 'file' ? FILE : ROW,
     dataset: opts.dataset,
     key: key,
-    value: Buffer.isBuffer(value) ? value : this._encoding.encode(value)
+    value: Buffer.isBuffer(value) ? value : valueEncoding.encode(value)
   }], opts.message, cb)
 }
 
@@ -541,6 +542,7 @@ Dat.prototype.del = function (key, opts, cb) {
 Dat.prototype.batch = function (batch, opts, cb) {
   if (typeof opts === 'function') return this.batch(batch, null, opts)
   if (!opts) opts = {}
+  var valueEncoding = this._getValueEncoding(opts.valueEncoding)
 
   var operations = new Array(batch.length)
   for (var i = 0; i < batch.length; i++) {
@@ -549,7 +551,7 @@ Dat.prototype.batch = function (batch, opts, cb) {
       type: b.type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
       key: b.key,
-      value: b.value && (Buffer.isBuffer(b.value) ? b.value : this._encoding.encode(b.value))
+      value: b.value && (Buffer.isBuffer(b.value) ? b.value : valueEncoding.encode(b.value))
     }
   }
   this._commit(null, DATA, operations, opts.message, cb)
@@ -674,13 +676,14 @@ Dat.prototype.createWriteStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createWriteStream, [opts])
   if (!opts) opts = {}
   var self = this
+  var valueEncoding = this._getValueEncoding(opts.valueEncoding)
 
   var toOperation = function (data) {
     return {
       type: data.type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
       key: data.key,
-      value: self._encoding.encode(data.value)
+      value: valueEncoding.encode(data.value)
     }
   }
 
@@ -726,11 +729,13 @@ Dat.prototype.createWriteStream = function (opts) {
 
 Dat.prototype.diff =
 Dat.prototype.createDiffStream = function (headA, headB, opts) {
-  var self = this
   var a = this.checkout(headA)
   var b = this.checkout(headB)
+  if (!opts) opts = {}
 
+  var valueEncoding = this._getValueEncoding(opts.valueEncoding)
   var binaryEncoding = encoding('binary')
+
   var findFork = function () {
     // TODO: we probably don't need a double loop here
     // since the layers are sorted bottom -> top
@@ -752,7 +757,7 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
       obj.key = key.slice(i + 1)
       obj.dataset = key.slice(0, i)
     }
-    obj.value = self._encoding.decode(obj.value)
+    obj.value = valueEncoding.decode(obj.value)
   }
 
   var fork = -1
@@ -789,6 +794,7 @@ Dat.prototype.createMergeStream = function (headA, headB, opts) {
   if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB, opts])
   if (!opts) opts = {}
   if (!headA || !headB) throw new Error('You need to provide two nodes')
+  var valueEncoding = this._getValueEncoding(opts.valueEncoding)
 
   var self = this
   var operations = []
@@ -799,7 +805,7 @@ Dat.prototype.createMergeStream = function (headA, headB, opts) {
       type: data.type === 'del' ? DELETE : PUT,
       dataset: data.dataset,
       key: data.key,
-      value: self._encoding.encode(data.value)
+      value: valueEncoding.encode(data.value)
     })
 
     cb()
@@ -978,6 +984,11 @@ Dat.prototype._createProxyStream = function (method, args) {
   })
 
   return proxy
+}
+
+Dat.prototype._getValueEncoding = function (enc) {
+  if (enc) return encoding(enc)
+  return this._valueEncoding
 }
 
 module.exports = Dat
