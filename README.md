@@ -34,15 +34,11 @@ Create a new dat instance.
 
 ##### Options
 
-```
-{
-  checkout:        // database version to access. default is latest
-  valueEncoding:   // 'json' | 'binary' | 'utf-8' or a custom encoder instance
-  createIfMissing: // true or false, default false. creates dat folder if it doesnt exist
-  backend:         // a leveldown compatible instance to use (default is leveldown)
-  blobs:           // an abstract-blob-store compatible instance to use (default is content-addressable-blob-store)
-}
-```
+- `checkout` - database version to access. default is latest
+- `valueEncoding` - 'json' | 'binary' | 'utf-8' or a custom encoder instance
+- `createIfMissing` - true or false, default false. creates dat folder if it doesnt exist
+- `backend` - a leveldown compatible instance to use (default is leveldown)
+- `blobs` - an abstract-blob-store compatible instance to use (default is content-addressable-blob-store)
 
 #### `db.head`
 
