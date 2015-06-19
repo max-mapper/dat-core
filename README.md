@@ -104,11 +104,31 @@ If you just use `dat.put` and `dat.get` it will use the default dataset (equaiva
 
 #### `stream = db.createReadStream([options])`
 
-Stream out values of the dat
+Stream out values of the dat. Returns a readable stream.
 
 #### `stream = db.createWriteStream([options])`
 
-Stream in values to the dat
+Stream in values to the dat. Returns a writable stream.
+
+##### Options
+
+- `dataset` - the dataset to store the data in
+- `message` - a human readable message string to store with the metadata for the changes made by the write stream
+- `transaction` - boolean, default false. if true everything written to the write stream will be stored as 1 transaction in the history
+- `batchSize` - default `128`, the group size used to write to the underlying leveldown batch write
+- `valueEncoding` - override the value encoding set on the dat-core instance
+
+##### Data format
+
+When you write data to the write stream, it must look like this:
+
+```
+{
+  type:     // 'put' or 'del'
+  key:      // key
+  value:    // value
+}
+```
 
 #### `stream = db.createFileReadStream(key, [options])`
 
