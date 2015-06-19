@@ -617,20 +617,24 @@ Dat.prototype.createChangesStream = function (opts) {
 
       if (isTransaction(commit)) return cb()
 
-      var change = {
-        root: commit.type === INIT,
-        change: data.change,
-        date: new Date(commit.modified),
-        version: data.key,
-        message: commit.message,
-        links: data.links,
-        puts: commit.puts,
-        deletes: commit.deletes,
-        files: commit.files
-      }
+      self._index.meta.get('status!' + data.key, {valueEncoding: messages.Status}, function (err, st) {
+        if (err) return cb(err)
 
-      if (commit.type !== TRANSACTION_END) return cb(null, change)
-      resolve(change, cb)
+        var change = {
+          root: commit.type === INIT,
+          change: data.change,
+          date: new Date(st.modified),
+          version: data.key,
+          message: commit.message,
+          links: data.links,
+          puts: commit.puts,
+          deletes: commit.deletes,
+          files: commit.files
+        }
+
+        if (commit.type !== TRANSACTION_END) return cb(null, change)
+        resolve(change, cb)
+      })
     })
   }
 
