@@ -115,7 +115,7 @@ Stream in values to the dat. Returns a writable stream.
 - `dataset` - the dataset to store the data in
 - `message` - a human readable message string to store with the metadata for the changes made by the write stream
 - `transaction` - boolean, default false. if true everything written to the write stream will be stored as 1 transaction in the history
-- `batchSize` - default `128`, the group size used to write to the underlying leveldown batch write
+- `batchSize` - default `128`, the group size used to write to the underlying leveldown batch write. this also determines how many nodes end up in the graph (higher batch size = less nodes)
 - `valueEncoding` - override the value encoding set on the dat-core instance
 
 ##### Data format
