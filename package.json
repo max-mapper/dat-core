@@ -25,7 +25,7 @@
     "protocol-buffers": "^2.6.1",
     "pump": "^1.0.0",
     "pumpify": "^1.3.3",
-    "sorted-diff-stream": "^1.0.1",
+    "sorted-diff-stream": "^1.0.2",
     "sorted-union-stream": "^2.1.1",
     "stream-collector": "^1.0.1",
     "subleveldown": "^2.0.0",
