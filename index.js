@@ -761,7 +761,7 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
     cb(null, true)
   }
 
-  var readOpts = {change: true, encoding: binaryEncoding, all: true}
+  var readOpts = {change: true, valueEncoding: binaryEncoding, all: true}
   var stream = pump(diff(a.createReadStream(readOpts), b.createReadStream(readOpts), isEqual), through.obj(filter))
 
   var onerror = function (err) {
