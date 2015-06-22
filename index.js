@@ -592,6 +592,14 @@ Dat.prototype.flush = function (cb) {
   })
 }
 
+Dat.prototype.close = function (cb) {
+  if (!cb) cb = noop
+  this.open(function (err, self) {
+    if (err) return cb(err)
+    self._index.db.close(cb)
+  })
+}
+
 Dat.prototype.changes =
 Dat.prototype.createChangesStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createChangesStream, [opts])
