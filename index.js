@@ -451,7 +451,6 @@ Dat.prototype._getOperation = function (ptr, cb) {
 }
 
 Dat.prototype._getPointerEntry = function (ptr, encoding, cb) {
-  var self = this
   this._getOperation(ptr, function (err, entry, node) {
     if (err) return cb(err)
     if (entry.type === DELETE) return cb(notFound(entry.key))
@@ -692,6 +691,11 @@ Dat.prototype.createWriteStream = function (opts) {
       if (err) return cb(err)
 
       batch = batch.filter(function (item) {
+        if (item) {
+          if (item.type === DELETE) stream.progress.deletes++
+          else stream.progress.puts++
+          stream.emit('progress')
+        }
         return item
       })
 
@@ -751,6 +755,9 @@ Dat.prototype.createWriteStream = function (opts) {
     through.obj({highWaterMark: 1}, write)
 
   var stream = pumpify.obj(batcher({limit: opts.batchSize || 128}), through.obj(deduplicate), writer)
+
+  stream.progress = {puts: 0, deletes: 0}
+
   return stream
 }
 
@@ -988,11 +995,17 @@ Dat.prototype.push = function (opts) {
 Dat.prototype._createProxyStream = function (method, args) {
   var proxy = duplexify.obj()
 
+  proxy.progress = {}
+
   this.open(function (err, self) {
     if (err) return proxy.destroy(err)
     if (proxy.destroyed) return proxy.destroy()
 
     var stream = method.apply(self, args)
+
+    stream.on('progress', function () {
+      proxy.progress = stream.progress
+    })
 
     stream.on('pull', function () {
       proxy.emit('pull')
