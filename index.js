@@ -317,12 +317,18 @@ Dat.prototype.createFileWriteStream = function (key, opts) {
     })
   }
 
+  stream.progress = {bytes: 0}
   stream.setReadable(false)
   this.open(function (err, self) {
     if (err) return stream.destroy(err)
     if (!self._index.blobs) return destroy(new Error('No blob store attached'))
 
     var ws = self._index.blobs.createWriteStream()
+    var monitor = through(function (data, enc, cb) {
+      stream.progress.bytes += data.length
+      stream.emit('progress')
+      cb(null, data)
+    })
 
     stream.on('prefinish', function () {
       stream.cork()
@@ -334,7 +340,7 @@ Dat.prototype.createFileWriteStream = function (key, opts) {
       })
     })
 
-    stream.setWritable(ws)
+    stream.setWritable(pumpify(monitor, ws))
   })
 
   return stream
