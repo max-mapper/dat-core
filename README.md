@@ -40,6 +40,18 @@ Create a new dat instance.
 - `backend` - a leveldown compatible constructor to use (default is require('leveldown'))
 - `blobs` - an abstract-blob-store compatible instance to use (default is content-addressable-blob-store)
 
+Per default the path passed to the backend is `{path}/.dat/db`.
+If your custom backend requires a special url simply wrap in a function
+
+``` js
+var sqldown = require('sqldown')
+var db = dat('/some/regular/path', {
+  backend: function () {
+    return sqldown('pg://localhost/database')
+  }
+})
+```
+
 #### `db.head`
 
 String property containing the current head revision of the dat.
