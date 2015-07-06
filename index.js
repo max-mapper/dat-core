@@ -70,7 +70,7 @@ var Dat = function (dir, opts) {
     opts.db = dir
     dir = null
   }
-  if (dir) dir = path.resolve(dir)
+  if (dir && !opts.backend) dir = path.resolve(dir)
 
   events.EventEmitter.call(this)
 
