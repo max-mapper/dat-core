@@ -70,11 +70,7 @@ var Dat = function (dir, opts) {
     opts.db = dir
     dir = null
   }
-
-  if (dir) {
-    var backendDir = opts.backend ? dir : path.resolve(dir)
-    if (opts.backend && opts.blobs) dir = '.'
-  }
+  if (dir && !opts.backend) dir = path.resolve(dir)
 
   events.EventEmitter.call(this)
 
@@ -189,7 +185,7 @@ var Dat = function (dir, opts) {
     }
 
     var onbackend = function (backend) {
-      self._index = indexer({path: backendDir, backend: backend, blobs: opts.blobs, multiprocess: opts.multiprocess !== false}, function (err) {
+      self._index = indexer({path: datPath, backend: backend, blobs: opts.blobs, multiprocess: opts.multiprocess !== false}, function (err) {
         if (err) return cb(err)
         onindex()
       })
