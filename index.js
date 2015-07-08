@@ -761,7 +761,10 @@ Dat.prototype.createWriteStream = function (opts) {
     through.obj({highWaterMark: 0}, writeTransaction, endTransaction) :
     through.obj({highWaterMark: 1}, write)
 
-  var stream = pumpify.obj(encoder, batcher({limit: opts.batchSize || BATCH_SIZE, length: getLength}), through.obj(deduplicate), writer)
+  var batchOpts = {limit: opts.batchSize || BATCH_SIZE, length: getLength}
+  var stream = opts.deduplicate === false ?
+    pumpify.obj(encoder, batcher(batchOpts), writer) :
+    pumpify.obj(encoder, batcher(batchOpts), through.obj(deduplicate), writer)
 
   stream.progress = {puts: 0, deletes: 0}
 
