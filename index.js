@@ -19,6 +19,7 @@ var mkdirp = require('mkdirp')
 var leveldown = require('leveldown')
 var errors = require('level-errors')
 var fs = require('fs')
+var debug = require('debug')('dat-core')
 var encoding = require('./lib/encoding')
 var indexer = require('./lib/indexer')
 var messages = require('./lib/messages')
@@ -672,6 +673,8 @@ Dat.prototype.createWriteStream = function (opts) {
     }
   }
 
+  debug('createWriteStream', opts)
+
   var prev
   var first = true
   var checkout = this.checkout(this.head)
@@ -783,6 +786,8 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
   var b = this.checkout(headB)
   if (!opts) opts = {}
 
+  debug('createDiffStream', headA, headB, opts)
+
   var valueEncoding = this._getValueEncoding(opts.valueEncoding)
   var binaryEncoding = encoding('binary')
 
@@ -852,6 +857,9 @@ Dat.prototype.createMergeStream = function (headA, headB, opts) {
   if (!this.opened) return this._createProxyStream(this.createMergeStream, [headA, headB, opts])
   if (!opts) opts = {}
   if (!headA || !headB) throw new Error('You need to provide two nodes')
+
+  debug('createMergeStream', headA, headB, opts)
+
   var valueEncoding = this._getValueEncoding(opts.valueEncoding)
 
   var self = this
@@ -911,6 +919,8 @@ var toKey = function (data) {
 Dat.prototype.createReadStream = function (opts) {
   if (!this.opened) return this._createProxyStream(this.createReadStream, [opts])
   if (!opts) opts = {}
+
+  debug('createReadStream', opts)
 
   var self = this
   var justKeys = opts.keys && !opts.values
@@ -991,6 +1001,8 @@ Dat.prototype.createReadStream = function (opts) {
 Dat.prototype.createReplicationStream =
 Dat.prototype.replicate = function (opts) {
   var stream = this.opened ? replicate(this, opts) : this._createProxyStream(this.replicate, [opts])
+
+  debug('replicate', opts)
 
   stream.on('finish', function () {
     stream.resume() // always drain on finish

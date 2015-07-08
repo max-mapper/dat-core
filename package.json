@@ -8,6 +8,7 @@
     "byte-stream": "^2.1.0",
     "content-addressable-blob-store": "^4.1.1",
     "cuid": "^1.2.4",
+    "debug": "^2.2.0",
     "duplexify": "^3.4.1",
     "end-of-stream": "^1.1.0",
     "framed-hash": "^1.0.0",
