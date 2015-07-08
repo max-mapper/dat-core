@@ -690,11 +690,6 @@ Dat.prototype.createWriteStream = function (opts) {
       if (err) return cb(err)
 
       batch = batch.filter(function (item) {
-        if (item) {
-          if (item.type === DELETE) stream.progress.deletes++
-          else stream.progress.puts++
-          stream.emit('progress')
-        }
         return item
       })
 
@@ -720,13 +715,24 @@ Dat.prototype.createWriteStream = function (opts) {
     })
   }
 
+  var updateProgress = function (batch) {
+    for (var i = 0; i < batch.length; i++) {
+      var item = batch[i]
+      if (item.type === DELETE) stream.progress.deletes++
+      else stream.progress.puts++
+      stream.emit('progress')
+    }
+  }
+
   var write = function (batch, enc, cb) {
+    updateProgress(batch)
     self._commit(null, DATA, batch, opts.message, function (err) {
       cb(err)
     })
   }
 
   var writeTransaction = function (batch, enc, cb) {
+    updateProgress(batch)
     if (!prev) {
       prev = batch
       cb()
