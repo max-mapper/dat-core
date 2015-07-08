@@ -669,7 +669,7 @@ Dat.prototype.createWriteStream = function (opts) {
       type: data.type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
       key: data.key,
-      value: valueEncoding.encode(data.value)
+      value: data.value && valueEncoding.encode(data.value)
     }
   }
 
