@@ -759,7 +759,7 @@ Dat.prototype.createWriteStream = function (opts) {
   }
 
   var getLength = function (data) {
-    return data.value.length
+    return data.value ? data.value.length : 128 // we just set a delete to count as ~128 bytes
   }
 
   var encoder = through.obj(function (data, enc, cb) {
