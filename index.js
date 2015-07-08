@@ -35,6 +35,7 @@ var DATA = messages.COMMIT_TYPE.DATA
 var TRANSACTION_DATA = messages.COMMIT_TYPE.TRANSACTION_DATA
 var TRANSACTION_START = messages.COMMIT_TYPE.TRANSACTION_START
 var TRANSACTION_END = messages.COMMIT_TYPE.TRANSACTION_END
+var BATCH_SIZE = 2 * 1024 * 1024
 
 var noop = function () {}
 var getLayers = function (index, key, cb) {
@@ -685,8 +686,6 @@ Dat.prototype.createWriteStream = function (opts) {
   }
 
   var deduplicate = function (batch, enc, cb) {
-    batch = batch.map(toOperation)
-
     var next = after(function (err) {
       if (err) return cb(err)
 
@@ -750,11 +749,19 @@ Dat.prototype.createWriteStream = function (opts) {
     })
   }
 
+  var getLength = function (data) {
+    return data.value.length
+  }
+
+  var encoder = through.obj(function (data, enc, cb) {
+    cb(null, toOperation(data))
+  })
+
   var writer = opts.transaction ?
     through.obj({highWaterMark: 0}, writeTransaction, endTransaction) :
     through.obj({highWaterMark: 1}, write)
 
-  var stream = pumpify.obj(batcher({limit: opts.batchSize || 128}), through.obj(deduplicate), writer)
+  var stream = pumpify.obj(encoder, batcher({limit: opts.batchSize || BATCH_SIZE, length: getLength}), through.obj(deduplicate), writer)
 
   stream.progress = {puts: 0, deletes: 0}
 
