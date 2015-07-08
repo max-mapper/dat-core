@@ -974,8 +974,13 @@ Dat.prototype.createReadStream = function (opts) {
 
 Dat.prototype.createReplicationStream =
 Dat.prototype.replicate = function (opts) {
-  if (!this.opened) return this._createProxyStream(this.replicate, [opts])
-  return replicate(this, opts)
+  var stream = this.opened ? replicate(this, opts) : this._createProxyStream(this.replicate, [opts])
+
+  stream.on('finish', function () {
+    stream.resume() // always drain on finish
+  })
+
+  return stream
 }
 
 Dat.prototype.createPullStream =
