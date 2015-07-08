@@ -720,8 +720,8 @@ Dat.prototype.createWriteStream = function (opts) {
       var item = batch[i]
       if (item.type === DELETE) stream.progress.deletes++
       else stream.progress.puts++
-      stream.emit('progress')
     }
+    stream.emit('progress')
   }
 
   var write = function (batch, enc, cb) {
