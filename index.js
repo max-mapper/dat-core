@@ -968,6 +968,7 @@ Dat.prototype.createReadStream = function (opts) {
   if (limit === -1) return dataStream
 
   var limited = through.obj(function (data, enc, cb) {
+    if (!limit) return cb()
     limited.push(data)
     if (!--limit) {
       cleanup()
