@@ -973,7 +973,12 @@ Dat.prototype.createReadStream = function (opts) {
   var limited = through.obj(function (data, enc, cb) {
     if (!limit) return cb()
     limited.push(data)
-    if (!--limit) onclose()
+    if (!--limit) {
+      destroyed = true
+      cleanup()
+      dataStream.destroy()
+      limited.end()
+    }
     cb()
   })
 
