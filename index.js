@@ -927,6 +927,7 @@ Dat.prototype.createReadStream = function (opts) {
   var justValues = opts.values && !opts.keys
   var all = !!opts.all
   var getOpts = xtend(opts)
+  var destroyed = false
 
   if (!this._layers.length) return emptyStream()
 
@@ -947,6 +948,8 @@ Dat.prototype.createReadStream = function (opts) {
     })
 
   var write = function (data, enc, cb) {
+    if (destroyed) return cb()
+
     var i = data.key.lastIndexOf('!')
     var key = data.key.slice(i + 1)
     var dataset = data.key.slice(data.key.lastIndexOf('!', i - 1) + 1, i)
@@ -970,11 +973,7 @@ Dat.prototype.createReadStream = function (opts) {
   var limited = through.obj(function (data, enc, cb) {
     if (!limit) return cb()
     limited.push(data)
-    if (!--limit) {
-      cleanup()
-      dataStream.destroy()
-      limited.end()
-    }
+    if (!--limit) onclose()
     cb()
   })
 
@@ -986,6 +985,7 @@ Dat.prototype.createReadStream = function (opts) {
   }
 
   var onclose = function (err) {
+    destroyed = true
     cleanup()
     dataStream.destroy(err)
     limited.destroy(err)
