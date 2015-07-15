@@ -1,4 +1,5 @@
 var after = require('after-all')
+var blobs = require('dat-blob-store')
 var events = require('events')
 var framedHash = require('framed-hash')
 var batcher = require('byte-stream')
@@ -180,14 +181,23 @@ var Dat = function (dir, opts) {
     var datPath = dir && path.join(dir, '.dat')
 
     var ondb = function (db) {
-      self._index = indexer({db: db, path: datPath, blobs: opts.blobs}, function (err) {
+      self._index = indexer({
+        db: db,
+        blobs: opts.blobs || blobs(dir),
+        path: datPath
+      }, function (err) {
         if (err) return cb(err)
         onindex()
       })
     }
 
     var onbackend = function (backend) {
-      self._index = indexer({path: datPath, backend: backend, blobs: opts.blobs, multiprocess: opts.multiprocess !== false}, function (err) {
+      self._index = indexer({
+        path: datPath,
+        backend: backend,
+        blobs: opts.blobs || blobs(dir),
+        multiprocess: opts.multiprocess !== false
+      }, function (err) {
         if (err) return cb(err)
         onindex()
       })
@@ -326,7 +336,7 @@ Dat.prototype.createFileWriteStream = function (key, opts) {
     if (err) return stream.destroy(err)
     if (!self._index.blobs) return destroy(new Error('No blob store attached'))
 
-    var ws = self._index.blobs.createWriteStream()
+    var ws = self._index.blobs.createWriteStream(key)
     var monitor = through(function (data, enc, cb) {
       stream.progress.bytes += data.length
       stream.emit('progress')
