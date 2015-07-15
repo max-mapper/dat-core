@@ -183,7 +183,7 @@ var Dat = function (dir, opts) {
     var ondb = function (db) {
       self._index = indexer({
         db: db,
-        blobs: opts.blobs || blobs(dir),
+        blobs: opts.blobs || (dir && blobs(dir)),
         path: datPath
       }, function (err) {
         if (err) return cb(err)
@@ -195,7 +195,7 @@ var Dat = function (dir, opts) {
       self._index = indexer({
         path: datPath,
         backend: backend,
-        blobs: opts.blobs || blobs(dir),
+        blobs: opts.blobs || (dir && blobs(dir)),
         multiprocess: opts.multiprocess !== false
       }, function (err) {
         if (err) return cb(err)
