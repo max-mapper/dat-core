@@ -39,6 +39,8 @@ var TRANSACTION_START = messages.COMMIT_TYPE.TRANSACTION_START
 var TRANSACTION_END = messages.COMMIT_TYPE.TRANSACTION_END
 var BATCH_SIZE = 2 * 1024 * 1024
 
+var DAT_FOLDER_NAME = 'data.dat'
+
 var noop = function () {}
 var getLayers = function (index, key, cb) {
   var result = []
@@ -178,7 +180,7 @@ var Dat = function (dir, opts) {
       })
     }
 
-    var datPath = dir && path.join(dir, '.dat')
+    var datPath = dir && path.join(dir, DAT_FOLDER_NAME)
 
     var ondb = function (db) {
       self._index = indexer({
