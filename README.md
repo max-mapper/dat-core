@@ -1,6 +1,6 @@
 # dat-core
 
-Work in progress. Will be part of [dat](https://github.com/maxogden/dat) beta.
+The core implementation of dat
 
 ```
 npm install dat-core
