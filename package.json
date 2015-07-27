@@ -7,7 +7,7 @@
     "after-all": "^2.0.2",
     "byte-stream": "^2.1.0",
     "cuid": "^1.2.4",
-    "dat-blob-store": "^1.0.0",
+    "dat-blob-store": "^2.0.0",
     "debug": "^2.2.0",
     "duplexify": "^3.4.1",
     "end-of-stream": "^1.1.0",
