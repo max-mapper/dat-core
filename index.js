@@ -556,6 +556,7 @@ Dat.prototype._commit = function (links, type, operations, message, cb) {
 
     for (var i = 0; i < operations.length; i++) {
       var op = operations[i]
+      op.key = op.key.toString()
       var val = messages.Operation.encode(op)
 
       if (op.content === FILE) files++
