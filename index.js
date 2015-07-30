@@ -825,7 +825,7 @@ Dat.prototype.createDiffStream = function (headA, headB, opts) {
       obj.key = key.slice(i + 1)
       obj.dataset = key.slice(0, i)
     }
-    obj.value = valueEncoding.decode(obj.value)
+    if (Buffer.isBuffer(obj.value)) obj.value = valueEncoding.decode(obj.value)
   }
 
   var fork = -1
