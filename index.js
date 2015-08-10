@@ -368,6 +368,7 @@ function formatOperation (op, valueEncoding) {
     content: op.content === FILE ? 'file' : 'row',
     type: op.type === PUT ? 'put' : 'del',
     key: op.key,
+    dataset: op.dataset,
     value: op.value && op.content === FILE ? messages.File.decode(op.value) : valueEncoding.decode(op.value)
   }
 }
