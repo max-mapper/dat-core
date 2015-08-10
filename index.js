@@ -2,6 +2,8 @@ var after = require('after-all')
 var blobs = require('dat-blob-store')
 var events = require('events')
 var framedHash = require('framed-hash')
+var MultiStream = require('multistream')
+var iterate = require('stream-iterate')
 var batcher = require('byte-stream')
 var xtend = require('xtend')
 var duplexify = require('duplexify')
@@ -361,6 +363,16 @@ Dat.prototype.createFileWriteStream = function (key, opts) {
   return stream
 }
 
+function formatOperation (op, valueEncoding) {
+  return {
+    content: op.content === FILE ? 'file' : 'row',
+    type: op.type === PUT ? 'put' : 'del',
+    key: op.key,
+    dataset: op.dataset,
+    value: op.value && op.content === FILE ? messages.File.decode(op.value) : valueEncoding.decode(op.value)
+  }
+}
+
 Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
   if (typeof opts === 'function') return this.get(key, null, opts)
   if (!opts) opts = {}
@@ -373,16 +385,12 @@ Dat.prototype.get = function (key, opts, cb) { // TODO: refactor me
 
     var valueEncoding = self._getValueEncoding(opts.valueEncoding)
 
-    var onoperation = function (err, op, node) {
+    var onoperation = function (err, data, node) {
       if (err) return cb(err)
-      cb(null, {
-        content: op.content === FILE ? 'file' : 'row',
-        type: op.type === PUT ? 'put' : 'del',
-        version: node.key,
-        change: node.change,
-        key: op.key,
-        value: op.value && op.content === FILE ? messages.File.decode(op.value) : valueEncoding.decode(op.value)
-      })
+      var op = formatOperation(data, valueEncoding)
+      op.version = node.key
+      op.change = node.change
+      cb(null, op)
     }
 
     var onpointer = function (err, ptr) {
@@ -628,6 +636,8 @@ Dat.prototype.createChangesStream = function (opts) {
 
   var self = this
 
+  var valueEncoding = this._getValueEncoding()
+
   var resolve = function (change, cb) {
     self._index.get(change.links[0], function (err, node, commit) {
       if (err) return cb(err)
@@ -641,7 +651,7 @@ Dat.prototype.createChangesStream = function (opts) {
     })
   }
 
-  var format = function (data, enc, cb) {
+  var formatCommits = function (data, enc, cb) {
     self._index.get(data.key, function (err, node, commit) {
       if (err) return cb(err)
 
@@ -668,7 +678,42 @@ Dat.prototype.createChangesStream = function (opts) {
     })
   }
 
-  return pump(this._index.log.createReadStream(opts), through.obj(format))
+  var formatOperations = function (data, enc, cb) {
+    self._index.get(data.key, function (err, node, commit) {
+      if (err) return cb(err)
+      if (!commit.operations) return cb()
+
+      var opts = {
+        valueEncoding: 'binary',
+        gt: commit.operations + '!',
+        lt: commit.operations + '!~'
+      }
+
+      var onoperation = function (data, enc, cb) {
+        var op = formatOperation(messages.Operation.decode(data), valueEncoding)
+        cb(null, op)
+      }
+
+      var operationStream = pumpify.obj(self._index.operations.createValueStream(opts), through.obj(onoperation))
+      cb(null, operationStream)
+    })
+  }
+
+  var formatter = opts.values ? formatOperations : formatCommits
+
+  var stream = pump(this._index.log.createReadStream(opts), through.obj(formatter))
+  if (!opts.values) return stream
+
+  var read = iterate(stream)
+  function loop (cb) {
+    read(function (err, operationStream, next) {
+      if (err) return cb(err)
+      next()
+      cb(null, operationStream)
+    })
+  }
+
+  return MultiStream.obj(loop)
 }
 
 Dat.prototype.createWriteStream = function (opts) {
