@@ -846,10 +846,10 @@ Dat.prototype.createFork = function (opts, cb) {
   if (!opts.head) opts.head = this.head
 
   var self = this
-  self._index.get(head, function (err, node, commit) {
+  self._index.get(opts.head, function (err, node, commit) {
     if (err) return cb(err)
     commit.modified = Date.now()
-    commit.message = opts.message || 'FORK: ' + head + '\n' + commit.message
+    commit.message = opts.message || 'FORK: ' + opts.head + '\n' + commit.message
     self._index.add(node.links.length === 1 ? node.links[0] : node.links, commit, function (err, node, layer) {
       if (err) return cb(err)
       cb(null, node.key)
