@@ -16,14 +16,18 @@ var dat = require('dat-core')
 
 var db = dat('./test')
 
-db.put('hello', 'world', function (err) { // insert value
-  if (err) return handle(err) // something went wrong
-  db.get('hello', function (err, result) {
+db.init(ready) // if not created
+
+function ready (err) {
+  db.put('hello', 'world', function (err) { // insert value
     if (err) return handle(err) // something went wrong
-    console.log(result)   // prints result
-    console.log(db.head) // the 'head' of the database graph (a hash)
+    db.get('hello', function (err, result) {
+      if (err) return handle(err) // something went wrong
+      console.log(result)   // prints result
+      console.log(db.head) // the 'head' of the database graph (a hash)
+    })
   })
-})
+}
 ```
 
 ## API

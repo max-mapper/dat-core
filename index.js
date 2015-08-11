@@ -96,6 +96,7 @@ var Dat = function (dir, opts) {
   var self = this
 
   this.init = thunky(function (cb) {
+    opts.createIfMissing = true
     self.open(function (err) {
       if (err) return cb(err)
       if (self.head) return cb(null, self)
