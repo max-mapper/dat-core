@@ -838,6 +838,25 @@ Dat.prototype.createWriteStream = function (opts) {
   return stream
 }
 
+Dat.prototype.createFork = function (opts, cb) {
+  if (typeof opts === 'function') {
+    cb = opts
+    opts = {}
+  }
+  if (!opts.head) opts.head = this.head
+
+  var self = this
+  self._index.get(head, function (err, node, commit) {
+    if (err) return cb(err)
+    commit.modified = Date.now()
+    commit.message = opts.message || 'FORK: ' + head + '\n' + commit.message
+    self._index.add(node.links.length === 1 ? node.links[0] : node.links, commit, function (err, node, layer) {
+      if (err) return cb(err)
+      cb(null, node.key)
+    })
+  })
+}
+
 Dat.prototype.diff =
 Dat.prototype.createDiffStream = function (headA, headB, opts) {
   var a = this.checkout(headA)

@@ -193,6 +193,39 @@ that conflicts across the branches (see the compare method above).
 Once you end this stream the branches will be merged assuming the don't
 contain conflicting keys anymore.
 
+#### `db.createFork(opts, cb)`
+
+Create a new fork that is a copy of the current head. This will not checkout to new fork, just copy and return. `opts.head` can be set to fork a different head
+
+`cb()` will be called with two arguments: `err` and `head`, which is the version of the new node that was created.
+
+For example, starting with this graph:
+
+```
+a
+|
+b
+|
+c (latest)
+```
+
+After running createFork on `c`, where d is a copy of c:
+
+```
+a
+|
+b
+| \
+c  d <- (d is the same as c, but c is still 'latest')
+```
+
+This is equivalent to (but much faster than) running the following code because it just copies the node in the internal graph, including copying a pointer to the underlying row operations:
+
+```
+dat checkout b
+dat export -d dataset --checkout=c | dat import -d dataset
+```
+
 #### `anotherDat = db.checkout(ref)`
 
 Checkout an older revision of the dat.
