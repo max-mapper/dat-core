@@ -261,7 +261,6 @@ Dat.prototype.listDatasets = function (cb) {
       }
 
       loop(null)
-
     }
 
     var loop = function (err) {
