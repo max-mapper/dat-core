@@ -81,6 +81,8 @@ var Dat = function (dir, opts) {
 
   events.EventEmitter.call(this)
 
+  var createIfMissing = opts.createIfMissing !== false
+
   this.valueEncoding = opts.valueEncoding || 'binary'
   this.head = null
   this.opened = false
@@ -214,7 +216,7 @@ var Dat = function (dir, opts) {
 
     fs.exists(datPath, function (exists) {
       if (exists) return onbackend(opts.backend || leveldown)
-      if (!opts.createIfMissing) return cb(new Error('No dat here'))
+      if (!createIfMissing) return cb(new Error('No dat here'))
 
       mkdirp(datPath, function (err) {
         if (err) return cb(err)
@@ -722,6 +724,7 @@ Dat.prototype.createWriteStream = function (opts) {
   var valueEncoding = this._getValueEncoding(opts.valueEncoding)
 
   var toOperation = function (data) {
+    if (!data.key) throw new Error('You must specify data.key in the stream objects')
     return {
       type: data.type === 'del' ? DELETE : PUT,
       dataset: opts.dataset,
