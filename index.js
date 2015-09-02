@@ -495,18 +495,23 @@ Dat.prototype.status = function (cb) {
     self._index.meta.get('status!' + head, {valueEncoding: messages.Status}, function (err, status) {
       if (err) return cb(err)
 
-      self.listDatasets(function (err, sets) {
+      self.heads(function (err, heads) {
         if (err) return cb(err)
-        cb(null, {
-          head: head,
-          transaction: isTransaction(status),
-          checkout: self.inCheckout,
-          modified: new Date(status.modified),
-          datasets: sets.length,
-          rows: status.rows,
-          files: status.files,
-          versions: status.versions,
-          size: status.size
+
+        self.listDatasets(function (err, sets) {
+          if (err) return cb(err)
+          cb(null, {
+            head: head,
+            transaction: isTransaction(status),
+            checkout: self.inCheckout,
+            heads: heads.length,
+            modified: new Date(status.modified),
+            datasets: sets.length,
+            rows: status.rows,
+            files: status.files,
+            versions: status.versions,
+            size: status.size
+          })
         })
       })
     })
