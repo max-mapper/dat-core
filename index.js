@@ -498,7 +498,7 @@ Dat.prototype.status = function (cb) {
       self.heads(function (err, heads) {
         if (err) return cb(err)
 
-        self.listDatasets(function (err, sets) {
+        self.listDatasets(function (err, datasets) {
           if (err) return cb(err)
           cb(null, {
             head: head,
@@ -506,7 +506,7 @@ Dat.prototype.status = function (cb) {
             checkout: self.inCheckout,
             heads: heads.length,
             modified: new Date(status.modified),
-            datasets: sets.length,
+            datasets: datasets,
             rows: status.rows,
             files: status.files,
             versions: status.versions,
