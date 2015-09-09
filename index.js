@@ -257,7 +257,7 @@ Dat.prototype.listDatasets = function (cb) {
           var dataset = keys[0].split('!')[3]
           if (!dataset) return cb(null, result)
 
-          result.push(dataset)
+          if (dataset !== 'files') result.push(dataset)
           loop(dataset)
         })
       }
@@ -326,6 +326,7 @@ Dat.prototype.createFileReadStream = function (key, opts) {
 
 Dat.prototype.createFileWriteStream = function (key, opts) {
   if (!opts) opts = {}
+  if (!opts.dataset) opts.dataset = 'files'
 
   var stream = duplexify()
 
