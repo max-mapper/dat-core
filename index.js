@@ -310,6 +310,9 @@ var notFound = function (key) {
 }
 
 Dat.prototype.createFileReadStream = function (key, opts) {
+  if (!opts) opts = {}
+  if (!opts.dataset) opts.dataset = 'files'
+
   var stream = duplexify()
   var self = this
 
