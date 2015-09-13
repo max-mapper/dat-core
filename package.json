@@ -32,6 +32,7 @@
     "stream-collector": "^1.0.1",
     "stream-iterate": "^1.1.1",
     "subleveldown": "^2.0.0",
+    "sublevelup": "^3.0.2",
     "through2": "^0.6.3",
     "thunky": "^0.1.0",
     "xtend": "^4.0.0"
