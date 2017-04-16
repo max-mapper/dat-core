@@ -1007,7 +1007,8 @@ Dat.prototype.createReadStream = function (opts) {
         gt: prefix + (opts.gt || ''),
         lt: prefix + (opts.lt || '\xff'),
         lte: opts.lte ? prefix + opts.lte : undefined,
-        gte: opts.gte ? prefix + opts.gte : undefined
+        gte: opts.gte ? prefix + opts.gte : undefined,
+        limit: opts.limit
       })
 
       return rs
